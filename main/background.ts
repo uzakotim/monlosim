@@ -36,18 +36,23 @@ app.on('window-all-closed', () => {
   app.quit()
 })
 
+type RowType = {
+  id: number
+  monthYear: string   // "MMMM yyyy"
+  income: number
+  expenses: number 
+}
 type StoreType = {
-  messages: string[]
+  data: RowType[]
 }
 
-const store = new Store<StoreType>({ name: 'messages' })
+const store = new Store<StoreType>({ name: 'monlosim_data' })
 
-ipcMain.on('get-messages', (event) => {
-  event.reply('messages', store.get('messages') || [])
-})
+// --- IPC Handlers ---
+ipcMain.handle("store:get", (_, key) => {
+  return store.get(key);
+});
 
-ipcMain.on('add-message', (_event, arg) => {
-  const messages = store.get('messages') || []
-  messages.push(arg)
-  store.set('messages', messages)
-})
+ipcMain.handle("store:set", (_, key, value) => {
+  store.set(key, value);
+});

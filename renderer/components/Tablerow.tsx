@@ -1,5 +1,7 @@
 import React from 'react';
 import { Trash } from 'lucide-react';
+import MonthYearPicker from './MonthYearPicker';
+
 
 export default function TableRow({ row, onUpdate, onDelete }) {
   const handleChange = (e) => {
@@ -11,8 +13,11 @@ export default function TableRow({ row, onUpdate, onDelete }) {
 
   return (
     <tr className="hover:bg-slate-50 transition-colors duration-150">
-      <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-slate-900 md:px-6">
-        {row.monthYear}
+      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 md:px-6">
+        <MonthYearPicker
+          value={row.monthYear}
+          onChange={(updated) => onUpdate(row.id, "monthYear", updated)}
+        />
       </td>
       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 md:px-6">
         <input
