@@ -13,6 +13,8 @@ const handler = {
       ipcRenderer.removeListener(channel, subscription)
     }
   },
+  getStore: (key) => ipcRenderer.invoke("store:get", key),
+  setStore: (key, value) => ipcRenderer.invoke("store:set", key, value)
 }
 
 contextBridge.exposeInMainWorld('ipc', handler)
