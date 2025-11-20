@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import Button from "../../components/Button";
 import TableComponent from "../../components/TableComponent";
 import { format, addMonths, parse } from "date-fns";
+import { Plus } from 'lucide-react';
 
 function Page() {
   
@@ -71,21 +72,34 @@ function Page() {
     return <div>Loading…</div>;
   }
   return (
-    <div className="flex flex-col gap-5 h-screen items-center justify-center text-slate-800">
-      <TableComponent
-        data={data}
-        onAddRow={handleAddRow}
-        onUpdateRow={handleUpdateRow}
-        onDeleteRow={handleDeleteRow}
-      />
-      <Button
-        onClick={() => {
-          window.location.href = "/home";
-        }}
-      >
-        Back to Home
-      </Button>
-    </div>
+    
+      <div className="flex flex-col justify-center h-screen p-4">
+        {/* Scrollable content */}
+        <div className="flex-1 overflow-auto">
+          <TableComponent
+            data={data}
+            onUpdateRow={handleUpdateRow}
+            onDeleteRow={handleDeleteRow}
+          />
+        </div>
+        <div className="h-[15vh] flex flex-col items-center gap-2">
+          <button
+            onClick={handleAddRow}
+            className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-2xl shadow-sm text-white bg-slate-800 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500 transition-all duration-200"
+          >
+            <Plus className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
+            Add New Month
+          </button>
+
+            <Button
+              onClick={() => {
+                window.location.href = "/home";
+              }}
+            >
+              Back to Home
+            </Button>
+        </div>
+      </div>
   );
 }
 

@@ -15,7 +15,6 @@ function Home() {
                 }}>
                     New Simulation
                 </Button>
-                <div className='h-5'></div>
             </div>
         </div>
     </div>
