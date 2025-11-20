@@ -1,6 +1,11 @@
 import React from 'react';
 import TableRow from './Tablerow';
 
+const format = (num) => {
+  return num
+    .toFixed(2)                 // 1234567.89 → "1234567.89"
+    .replace(/\B(?=(\d{3})+(?!\d))/g, " "); // add spaces
+};
 
 export default function TableComponent({ data, onUpdateRow, onDeleteRow }) {
     // Calculate average and standard deviation
@@ -51,15 +56,15 @@ export default function TableComponent({ data, onUpdateRow, onDeleteRow }) {
       <tfoot>
         <tr className="bg-slate-50 border-t border-gray-200">
           <td className="px-4 py-3 text-right text-base font-semibold text-slate-700">Standard Deviations :</td>
-          <td className="px-4 py-3 text-left text-base font-semibold text-blue-700">{StdIncome.toFixed(2)}</td>
-          <td className="px-4 py-3 text-left text-base font-semibold text-blue-700">{StdExpenses.toFixed(2)}</td>
+          <td className="px-4 py-3 text-left text-base font-semibold text-blue-700">{format(StdIncome)}</td>
+          <td className="px-4 py-3 text-left text-base font-semibold text-blue-700">{format(StdExpenses)}</td>
           <td></td>
         </tr>
 
         <tr className="bg-slate-100 border-t border-gray-200">
           <td className="px-4 py-3 text-right text-lg font-bold text-slate-800">Average :</td>
-          <td className="px-4 py-3 text-left text-lg font-bold text-green-600">{AverageIncome.toFixed(2)}</td>
-          <td className="px-4 py-3 text-left text-lg font-bold text-red-600">{AverageExpenses.toFixed(2)}</td>
+          <td className="px-4 py-3 text-left text-lg font-bold text-green-600"> {format(AverageIncome)}</td>
+          <td className="px-4 py-3 text-left text-lg font-bold text-red-600"> {format(AverageExpenses)}</td>
           <td></td>
         </tr>
       </tfoot>
