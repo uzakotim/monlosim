@@ -1,97 +1,139 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Button from "../../components/Button";
-import { format, addMonths, parse } from "date-fns";
+import { Chart as ChartJS, BarElement, LinearScale, CategoryScale, Tooltip } from "chart.js";
+import { Bar } from "react-chartjs-2";
+
+ChartJS.register(BarElement, LinearScale, CategoryScale, Tooltip);
+
+function monteCarlo({ startingWealth, incomeAvg, incomeStd, expenseAvg, expenseStd, inflationRate, months, runs }) {
+  const results = new Array(runs);
+
+  for (let i = 0; i < runs; i++) {
+    let wealth = startingWealth;
+    for (let m = 0; m < months; m++) {
+      const income = Math.max(randNormal(incomeAvg, incomeStd), 0);
+      const expense = Math.max(randNormal(expenseAvg, expenseStd) * (1 + inflationRate / 100), 0);
+      wealth += income - expense;
+    }
+    results[i] = wealth;
+  }
+
+  return results;
+}
+
+// Box–Muller transform
+function randNormal(mean, std) {
+  let u = 0, v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  return mean + std * Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+}
 
 function Page() {
-  
-  const [data, setData] = useState(undefined);
+  const [rows, setRows] = useState(undefined);
 
-  // Load persisted data
   useEffect(() => {
-    async function loadData() {
+    async function load() {
       const stored = await window.ipc.getStore("data");
-      if (stored && Array.isArray(stored)) {
-        setData(stored);
-      } else {
-        const today = new Date();
-        setData([
-          {
-            id: Date.now(),
-            monthYear: format(today, "MMMM yyyy"),
-            income: 0,
-            expenses: 0,
-          },
-        ]);
-      }
+      if (Array.isArray(stored)) setRows(stored);
     }
-    loadData();
+    load();
   }, []);
 
-  
-  // Persist on every change
-  useEffect(() => {
-    if (data !== undefined) window.ipc.setStore("data", data);
-  }, [data]);
+  const simulation = useMemo(() => {
+    if (!rows || rows.length === 0) return null;
 
-  const handleAddRow = useCallback(() => {
-    const lastEntry = data[data.length - 1];
-    let nextDate;
+    const incomes = rows.map(r => Number(r.income));
+    const expenses = rows.map(r => Number(r.expenses));
 
-    if (lastEntry) {
-      const lastEntryDate = parse(lastEntry.monthYear, "MMMM yyyy", new Date());
-      nextDate = addMonths(lastEntryDate, 1);
-    } else {
-      nextDate = new Date();
-    }
+    const avg = arr => arr.reduce((a, b) => a + b, 0) / arr.length;
+    const std = arr => {
+  const m = avg(arr);
+  return Math.sqrt(
+    arr.reduce((s, x) => s + (x - m) ** 2, 0) / (arr.length - 1)
+  );
+};
 
-    const newRow = {
-      id: Date.now(),
-      monthYear: format(nextDate, "MMMM yyyy"),
-      income: 0,
-      expenses: 0,
+
+    const results = monteCarlo({
+    startingWealth: 57.2,
+    incomeAvg: avg(incomes),
+    incomeStd: std(incomes),
+    expenseAvg: avg(expenses),
+    expenseStd: std(expenses),
+    inflationRate: 0.83,
+    months: 12,          // 🔥 critical fix
+    runs: 100000,
+    });
+
+    results.sort((a, b) => a - b);
+
+    return {
+      results,
+      mean: avg(results),
+      median: results[Math.floor(results.length / 2)],
+      p10: results[Math.floor(results.length * 0.1)],
+      p90: results[Math.floor(results.length * 0.9)],
     };
+  }, [rows]);
 
-    setData((prevData) => [...prevData, newRow]);
-  }, [data]);
+  if (!simulation) return <div className="p-4">Loading…</div>;
 
-  const handleUpdateRow = useCallback((id, field, value) => {
-    setData((prevData) =>
-      prevData.map((row) =>
-        row.id === id ? { ...row, [field]: value } : row
-      )
-    );
-  }, []);
+  // Histogram bins
+  const bins = 50;
+  const min = simulation.results[0];
+  const max = simulation.results[simulation.results.length - 1];
+  const step = (max - min) / bins;
 
-  const handleDeleteRow = useCallback((id) => {
-    setData((prevData) => prevData.filter((row) => row.id !== id));
-  }, []);
+  const counts = new Array(bins).fill(0);
+  simulation.results.forEach(v => {
+    const i = Math.min(Math.floor((v - min) / step), bins - 1);
+    counts[i]++;
+  });
 
-  if (data === undefined) {
-    return <div>Loading…</div>;
-  }
+  const chartData = {
+    labels: counts.map((_, i) =>
+  ((min + i * step) / 1_000_000).toFixed(2)
+),
+    datasets: [
+      {
+        label: "Final Wealth Distribution",
+        data: counts.map(c => c / simulation.results.length),
+      },
+    ],
+  };
+  const options = {
+  scales: {
+    x: {
+      title: {
+        display: true,
+        text: "Final Wealth (Millions)",
+      },
+    },
+    y: {
+      title: {
+        display: true,
+        text: "Probability Density",
+      },
+    },
+  },
+};
+
   return (
-    
-      <div className="flex flex-col justify-center h-screen p-4">
-        <div className="h-[15vh] flex flex-col items-center gap-2">
-          <div className="flex flex-row gap-5">
-            <Button
-              onClick={() => {
-                window.location.href = "/home";
-              }}
-            >
-              Back to Home
-            </Button>
-            <Button
-              onClick={() => {
-                window.location.href = "/montecarlo/page";
-              }}
-            >
-              Back to data
-            </Button>
-          </div>
-           
-        </div>
+    <div className="flex flex-col h-screen p-6 gap-6">
+      <div className="flex gap-4">
+        <Button onClick={() => (window.location.href = "/home")}>Back to Home</Button>
+        <Button onClick={() => (window.location.href = "/montecarlo/page")}>Back to Data</Button>
       </div>
+
+      <Bar data={chartData} options={options} />
+
+      <div className="text-sm text-center">
+        <div>Mean: {(simulation.mean / 1_000_000).toFixed(2)}</div>
+        <div>Median: {(simulation.median / 1_000_000).toFixed(2)}</div>
+        <div>10–90% range: {(simulation.p10 / 1_000_000).toFixed(2)} – {(simulation.p90 / 1_000_000).toFixed(2)}</div>
+      </div>
+    </div>
   );
 }
 
