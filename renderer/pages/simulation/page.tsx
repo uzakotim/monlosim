@@ -47,8 +47,6 @@ function Page() {
  
     const incomes = rows.map(r => Number(r.income) / SCALE);
     const expenses = rows.map(r => Number(r.expenses) / SCALE);
-    console.log(incomes)
-    console.log(expenses)
 
     const avg = arr => arr.reduce((a, b) => a + b, 0) / arr.length;
     const std = arr => {
@@ -103,6 +101,9 @@ labels: counts.map((_, i) =>
       {
         label: "Final Wealth Distribution",
         data: counts.map(c => c / simulation.results.length),
+         backgroundColor: "rgba(35, 87, 171, 0.6)", // blue with transparency
+      borderColor: "rgb(59, 130, 246)",
+      borderWidth: 1,
       },
     ],
   };
@@ -130,7 +131,7 @@ labels: counts.map((_, i) =>
         <Button onClick={() => (window.location.href = "/montecarlo/page")}>Back to Data</Button>
       </div>
 
-      <Bar data={chartData} options={options} />
+      <Bar data={chartData} className="text-red-500" options={options} />
 
       <div className="text-sm text-center">
         <div>Mean: {simulation.mean.toFixed(2)}</div>
