@@ -43,8 +43,12 @@ function Page() {
   const simulation = useMemo(() => {
     if (!rows || rows.length === 0) return null;
 
-    const incomes = rows.map(r => Number(r.income));
-    const expenses = rows.map(r => Number(r.expenses));
+    const SCALE = 1_000_000;
+ 
+    const incomes = rows.map(r => Number(r.income) / SCALE);
+    const expenses = rows.map(r => Number(r.expenses) / SCALE);
+    console.log(incomes)
+    console.log(expenses)
 
     const avg = arr => arr.reduce((a, b) => a + b, 0) / arr.length;
     const std = arr => {
@@ -92,8 +96,8 @@ function Page() {
   });
 
   const chartData = {
-    labels: counts.map((_, i) =>
-  ((min + i * step) / 1_000_000).toFixed(2)
+labels: counts.map((_, i) =>
+  (min + i * step).toFixed(2)
 ),
     datasets: [
       {
@@ -129,9 +133,9 @@ function Page() {
       <Bar data={chartData} options={options} />
 
       <div className="text-sm text-center">
-        <div>Mean: {(simulation.mean / 1_000_000).toFixed(2)}</div>
-        <div>Median: {(simulation.median / 1_000_000).toFixed(2)}</div>
-        <div>10–90% range: {(simulation.p10 / 1_000_000).toFixed(2)} – {(simulation.p90 / 1_000_000).toFixed(2)}</div>
+        <div>Mean: {simulation.mean.toFixed(2)}</div>
+<div>Median: {simulation.median.toFixed(2)}</div>
+<div>10–90% range: {simulation.p10.toFixed(2)} – {simulation.p90.toFixed(2)}</div>
       </div>
     </div>
   );
