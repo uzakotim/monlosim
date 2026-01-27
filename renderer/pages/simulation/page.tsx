@@ -7,7 +7,6 @@ ChartJS.register(BarElement, LinearScale, CategoryScale, Tooltip);
 
 function monteCarlo({ startingWealth, incomeAvg, incomeStd, expenseAvg, expenseStd, inflationRate, months, runs }) {
   const results = new Array(runs);
-
   for (let i = 0; i < runs; i++) {
     let wealth = startingWealth;
     for (let m = 0; m < months; m++) {
@@ -31,6 +30,8 @@ function randNormal(mean, std) {
 
 function Page() {
   const [rows, setRows] = useState(undefined);
+  const [startingWealth, setStartingWealth] = useState(0);
+  const [inflationRate, setInflationRate] = useState(0.83);
 
   useEffect(() => {
     async function load() {
@@ -50,21 +51,21 @@ function Page() {
 
     const avg = arr => arr.reduce((a, b) => a + b, 0) / arr.length;
     const std = arr => {
-  const m = avg(arr);
-  return Math.sqrt(
-    arr.reduce((s, x) => s + (x - m) ** 2, 0) / (arr.length - 1)
-  );
-};
+      const m = avg(arr);
+      return Math.sqrt(
+        arr.reduce((s, x) => s + (x - m) ** 2, 0) / (arr.length - 1)
+      );
+    };
 
 
     const results = monteCarlo({
-    startingWealth: 57.2,
+    startingWealth: startingWealth,
     incomeAvg: avg(incomes),
     incomeStd: std(incomes),
     expenseAvg: avg(expenses),
     expenseStd: std(expenses),
-    inflationRate: 0.83,
-    months: 12,          // 🔥 critical fix
+    inflationRate: inflationRate,
+    months: 12,     
     runs: 100000,
     });
 
@@ -77,7 +78,7 @@ function Page() {
       p10: results[Math.floor(results.length * 0.1)],
       p90: results[Math.floor(results.length * 0.9)],
     };
-  }, [rows]);
+  }, [rows, startingWealth, inflationRate]);
 
   if (!simulation) return <div className="p-4">Loading…</div>;
 
@@ -99,7 +100,7 @@ labels: counts.map((_, i) =>
 ),
     datasets: [
       {
-        label: "Final Wealth Distribution",
+        label: "Final Wealth Distribution ",
         data: counts.map(c => c / simulation.results.length),
          backgroundColor: "rgba(35, 87, 171, 0.6)", // blue with transparency
       borderColor: "rgb(59, 130, 246)",
@@ -112,7 +113,7 @@ labels: counts.map((_, i) =>
     x: {
       title: {
         display: true,
-        text: "Final Wealth (Millions)",
+        text: "Final Wealth (Millions) after 12 months",
       },
     },
     y: {
@@ -129,15 +130,38 @@ labels: counts.map((_, i) =>
       <div className="flex gap-4">
         <Button onClick={() => (window.location.href = "/home")}>Back to Home</Button>
         <Button onClick={() => (window.location.href = "/montecarlo/page")}>Back to Data</Button>
-      </div>
-
-      <Bar data={chartData} className="text-red-500" options={options} />
-
-      <div className="text-sm text-center">
+        <div className="flex flex-col justify-center">
+          <label htmlFor="startingWealth" className="text-md font-light">Starting Wealth (Millions)</label>
+        <input
+            id="startingWealth"
+            type="number"
+            value={startingWealth}
+            onChange={e => setStartingWealth(Number(e.target.value))}
+            className="border p-2 rounded-xl"
+            placeholder="Starting Wealth (Millions)"
+            aria-label="Starting Wealth in Millions"
+          />
+        </div>
+        <div className="flex flex-col justify-center">
+          <label htmlFor="inflationRate" className="text-md font-light">Inflation Rate</label>
+        <input
+            id="inflationRate"
+            type="number"
+            value={inflationRate}
+            onChange={e => setInflationRate(Number(e.target.value))}
+            className="border p-2 rounded-xl"
+            placeholder="Inflation Rate"
+            aria-label="Inflation Rate"
+          />
+        </div>
+        <div className="text-sm text-center">
         <div>Mean: {simulation.mean.toFixed(2)}</div>
 <div>Median: {simulation.median.toFixed(2)}</div>
 <div>10–90% range: {simulation.p10.toFixed(2)} – {simulation.p90.toFixed(2)}</div>
       </div>
+      </div>
+
+      <Bar data={chartData} className="text-red-500" options={options} />
     </div>
   );
 }
