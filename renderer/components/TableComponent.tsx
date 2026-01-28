@@ -15,7 +15,7 @@ export default function TableComponent({ data, onUpdateRow, onDeleteRow }) {
     const StdExpenses = Math.sqrt(data.reduce((sum, row) => sum + Math.pow(Number(row.expenses || 0) - AverageExpenses, 2), 0) / data.length);
 
   return (
-    <div className="h-[82vh] flex flex-col p-5">
+    <div className="h-[75vh] flex flex-col p-5">
   <h2 className="text-2xl font-semibold mb-4 text-slate-700">
     Monthly Financial Overview
   </h2>
@@ -61,7 +61,7 @@ export default function TableComponent({ data, onUpdateRow, onDeleteRow }) {
           <td></td>
         </tr>
 
-        <tr className="bg-slate-100 border-t border-gray-200">
+        <tr className=" bg-slate-100 border-t border-gray-200">
           <td className="px-4 py-3 text-right text-lg font-bold text-slate-800">Average :</td>
           <td className="px-4 py-3 text-left text-lg font-bold text-green-600"> {format(AverageIncome)}</td>
           <td className="px-4 py-3 text-left text-lg font-bold text-red-600"> {format(AverageExpenses)}</td>

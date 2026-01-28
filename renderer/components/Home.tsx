@@ -3,7 +3,7 @@ import Button from './Button';
 
 function Home() {
   return (
-    <div className='flex flex-col h-screen items-center justify-center gap-10'>
+    <div className='flex flex-col h-[calc(80vh)] items-center justify-center gap-10'>
             <h2 className='text-5xl text-center'>Monlosim</h2>
                 <Button onClick={() => {
                    // redirect to montecarlo page

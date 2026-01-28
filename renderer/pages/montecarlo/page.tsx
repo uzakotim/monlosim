@@ -73,7 +73,7 @@ function Page() {
   }
   return (
     
-      <div className="flex flex-col justify-center h-screen p-4">
+      <div className="flex flex-col h-[calc(95vh)] gap-5 justify-center p-4">
         {/* Scrollable content */}
         <div className="flex-1 overflow-auto">
           <TableComponent

@@ -126,8 +126,8 @@ labels: counts.map((_, i) =>
 };
 
   return (
-    <div className="flex flex-col h-screen p-10 gap-3">
-      <div className="flex gap-4">
+    <div className="flex flex-col justify-center h-[calc(90vh)] p-10 gap-3">
+      <div className="flex flex-row items-start gap-4">
        
         <div className="flex flex-col justify-center">
           <label htmlFor="startingWealth" className="text-md font-light">Starting Wealth (Millions)</label>

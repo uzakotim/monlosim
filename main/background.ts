@@ -31,55 +31,64 @@ if (isProd) {
   },
 })
   // --- Manual Window State Management (The Fix) ---
-
-  // Use a variable to track if *we* are currently maximized via the custom button
   let isMaximizedManually = false;
-  // Initialize originalBounds to the startup dimensions
+  let isTransitioning = false; // Flag to prevent capturing bounds during animation
   let originalBounds = { x: 0, y: 0, width: 1200, height: 800 }; 
   
-  // Wait for the window to actually finish loading/showing before capturing initial accurate position/bounds
+  const updateOriginalBounds = () => {
+    if (!isMaximizedManually && !isTransitioning && mainWindow) {
+      originalBounds = mainWindow.getBounds();
+    }
+  };
+
   mainWindow.once('ready-to-show', () => {
     originalBounds = mainWindow.getBounds();
   });
 
-  mainWindow.on('resize', () => {
-    if (!isMaximizedManually) {
-      originalBounds = mainWindow.getBounds();
-    }
-  });
-
-  mainWindow.on('move', () => {
-    if (!isMaximizedManually) {
-      originalBounds = mainWindow.getBounds();
-    }
-  });
+  mainWindow.on('resize', updateOriginalBounds);
+  mainWindow.on('move', updateOriginalBounds);
 
 
   ipcMain.on('window-control:minimize', () => {
-    if (mainWindow) mainWindow.minimize();
-  });
-
-  ipcMain.on('window-control:maximize', () => {
     if (!mainWindow) return;
 
     if (isMaximizedManually) {
-      // Restore the window using the saved bounds
+      // If maximized, "minimizing" returns it to original size per user request
+      isTransitioning = true;
       mainWindow.setBounds(originalBounds, true);
       isMaximizedManually = false;
       mainWindow.webContents.send('window-state-changed', 'restored');
+      setTimeout(() => { isTransitioning = false; }, 600);
+    } else {
+      mainWindow.minimize();
+    }
+  });
+
+  ipcMain.on('window-control:maximize', () => {
+    if (!mainWindow || isTransitioning) return;
+
+    if (isMaximizedManually) {
+      // Restore the window using the saved bounds
+      isTransitioning = true;
+      mainWindow.setBounds(originalBounds, true);
+      isMaximizedManually = false;
+      mainWindow.webContents.send('window-state-changed', 'restored');
+      setTimeout(() => { isTransitioning = false; }, 600);
     } else {
       // Maximize the window manually
-      // 1. Save current bounds before we change them
+      // 1. Save current bounds BEFORE we change them
       originalBounds = mainWindow.getBounds(); 
 
       // 2. Get the screen's usable work area
       const display = screen.getDisplayNearestPoint(mainWindow.getBounds());
       const workArea = display.workArea;
       
-      // 3. Set window bounds to the work area
-      mainWindow.setBounds(workArea, true);
+      // 3. Set state BEFORE calling setBounds to prevent the resize listener from overwriting originalBounds
+      isTransitioning = true;
       isMaximizedManually = true;
+      mainWindow.setBounds(workArea, true);
       mainWindow.webContents.send('window-state-changed', 'maximized');
+      setTimeout(() => { isTransitioning = false; }, 600);
     }
   });
 
