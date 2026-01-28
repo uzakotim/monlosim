@@ -10,7 +10,7 @@ const titleBarStyle: React.CSSProperties = {
   height: '40px',
   padding: '0 10px',
   display: 'flex',
-  justifyContent: 'space-between', // Aligns title left, buttons right
+  justifyContent: 'space-between',
   alignItems: 'center',
 };
 
@@ -53,11 +53,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className='bg-white'>
       
-      <div id="custom-title-bar" style={titleBarStyle}>
+      <div id="custom-title-bar" className="custom-titlebar" style={titleBarStyle}>
        
         
         {/* Window Controls */}
-        <div style={buttonContainerStyle}>
+        <div style={buttonContainerStyle} className="window-controls">
           <button className="window-control-btn close" onClick={handleClose}>✕</button>
           <button className="window-control-btn" onClick={handleMinimize}>—</button>
           <button className="window-control-btn" onClick={handleMaximize}>

@@ -1,10 +1,13 @@
 @import "tailwindcss";
 
 .custom-titlebar {
-  height: 16px;
-  background-color: #ffffff; /* Your desired color */
-  -webkit-app-region: drag; /* Makes the title bar draggable */
-  /* Add styling for buttons, text, etc. */
+  height: 40px;
+  background-color: #ffffff;
+  -webkit-app-region: drag;
+}
+
+.window-controls {
+  -webkit-app-region: no-drag;
 }
 
 .window-control-btn {
