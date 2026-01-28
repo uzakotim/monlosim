@@ -21,9 +21,8 @@ export default function ScaledTableWrapper({ children }) {
     <div
       style={{
         transform: `scale(${scale})`,
-        transformOrigin: "top center",
         width: "100%",
-        transition: "transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
+        transition: "transform 0.4s ease-in-out",
       }}
     >
       {children}

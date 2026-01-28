@@ -15,7 +15,7 @@ export default function TableComponent({ data, onUpdateRow, onDeleteRow }) {
     const StdExpenses = Math.sqrt(data.reduce((sum, row) => sum + Math.pow(Number(row.expenses || 0) - AverageExpenses, 2), 0) / data.length);
 
   return (
-    <div className="h-[75vh] flex flex-col p-5">
+    <div className="h-[72vh] flex flex-col p-5">
   <h2 className="text-2xl font-semibold mb-4 text-slate-700">
     Monthly Financial Overview
   </h2>

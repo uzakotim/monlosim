@@ -126,7 +126,7 @@ labels: counts.map((_, i) =>
 };
 
   return (
-    <div className="flex flex-col justify-center h-[calc(90vh)] p-10 gap-3">
+    <div className="flex flex-col justify-center h-[calc(92vh)] p-10 gap-3">
       <div className="flex flex-row items-start gap-4">
        
         <div className="flex flex-col justify-center">

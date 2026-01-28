@@ -30,66 +30,37 @@ if (isProd) {
     preload: path.join(__dirname, 'preload.js'),
   },
 })
-  // --- Manual Window State Management (The Fix) ---
-  let isMaximizedManually = false;
-  let isTransitioning = false; // Flag to prevent capturing bounds during animation
-  let originalBounds = { x: 0, y: 0, width: 1200, height: 800 }; 
+  // --- Native Window State Management ---
+  // We use native maximize/unmaximize as they provide the most simultaneous animation on macOS.
   
-  const updateOriginalBounds = () => {
-    if (!isMaximizedManually && !isTransitioning && mainWindow) {
-      originalBounds = mainWindow.getBounds();
-    }
-  };
-
-  mainWindow.once('ready-to-show', () => {
-    originalBounds = mainWindow.getBounds();
-  });
-
-  mainWindow.on('resize', updateOriginalBounds);
-  mainWindow.on('move', updateOriginalBounds);
-
-
   ipcMain.on('window-control:minimize', () => {
     if (!mainWindow) return;
 
-    if (isMaximizedManually) {
-      // If maximized, "minimizing" returns it to original size per user request
-      isTransitioning = true;
-      mainWindow.setBounds(originalBounds, true);
-      isMaximizedManually = false;
-      mainWindow.webContents.send('window-state-changed', 'restored');
-      setTimeout(() => { isTransitioning = false; }, 600);
+    if (mainWindow.isMaximized()) {
+      // If maximized, restore to original size per user request
+      mainWindow.unmaximize();
     } else {
       mainWindow.minimize();
     }
   });
 
   ipcMain.on('window-control:maximize', () => {
-    if (!mainWindow || isTransitioning) return;
+    if (!mainWindow) return;
 
-    if (isMaximizedManually) {
-      // Restore the window using the saved bounds
-      isTransitioning = true;
-      mainWindow.setBounds(originalBounds, true);
-      isMaximizedManually = false;
-      mainWindow.webContents.send('window-state-changed', 'restored');
-      setTimeout(() => { isTransitioning = false; }, 600);
+    if (mainWindow.isMaximized()) {
+      mainWindow.unmaximize();
     } else {
-      // Maximize the window manually
-      // 1. Save current bounds BEFORE we change them
-      originalBounds = mainWindow.getBounds(); 
-
-      // 2. Get the screen's usable work area
-      const display = screen.getDisplayNearestPoint(mainWindow.getBounds());
-      const workArea = display.workArea;
-      
-      // 3. Set state BEFORE calling setBounds to prevent the resize listener from overwriting originalBounds
-      isTransitioning = true;
-      isMaximizedManually = true;
-      mainWindow.setBounds(workArea, true);
-      mainWindow.webContents.send('window-state-changed', 'maximized');
-      setTimeout(() => { isTransitioning = false; }, 600);
+      mainWindow.maximize();
     }
+  });
+
+  // Native listeners to sync with the renderer
+  mainWindow.on('maximize', () => {
+    mainWindow.webContents.send('window-state-changed', 'maximized');
+  });
+
+  mainWindow.on('unmaximize', () => {
+    mainWindow.webContents.send('window-state-changed', 'restored');
   });
 
   ipcMain.on('window-control:close', () => {

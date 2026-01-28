@@ -12,13 +12,11 @@ const titleBarStyle: React.CSSProperties = {
   display: 'flex',
   justifyContent: 'space-between', // Aligns title left, buttons right
   alignItems: 'center',
-  WebkitAppRegion: 'drag' as const, 
 };
 
 const buttonContainerStyle: React.CSSProperties = {
   display: 'flex',
   height: '100%',
-  WebkitAppRegion: 'no-drag' as const, 
 };
 
 const controlButtonStyle: React.CSSProperties = {
