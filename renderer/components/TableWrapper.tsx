@@ -23,6 +23,7 @@ export default function ScaledTableWrapper({ children }) {
         transform: `scale(${scale})`,
         transformOrigin: "top center",
         width: "100%",
+        transition: "transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
       }}
     >
       {children}

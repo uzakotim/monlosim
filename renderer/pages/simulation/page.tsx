@@ -126,10 +126,9 @@ labels: counts.map((_, i) =>
 };
 
   return (
-    <div className="flex flex-col h-screen p-6 gap-6">
+    <div className="flex flex-col h-screen p-10 gap-3">
       <div className="flex gap-4">
-        <Button onClick={() => (window.location.href = "/home")}>Back to Home</Button>
-        <Button onClick={() => (window.location.href = "/montecarlo/page")}>Back to Data</Button>
+       
         <div className="flex flex-col justify-center">
           <label htmlFor="startingWealth" className="text-md font-light">Starting Wealth (Millions)</label>
         <input
@@ -162,6 +161,10 @@ labels: counts.map((_, i) =>
       </div>
 
       <Bar data={chartData} className="text-red-500" options={options} />
+      <div className="flex flex-row justify-center gap-4">
+       <Button onClick={() => (window.location.href = "/home")}>Back to Home</Button>
+        <Button onClick={() => (window.location.href = "/montecarlo/page")}>Back to Data</Button>
+      </div>
     </div>
   );
 }

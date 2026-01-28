@@ -85,7 +85,7 @@ function Page() {
         <div className="h-[15vh] flex flex-col items-center gap-2">
           <button
             onClick={handleAddRow}
-            className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-2xl shadow-sm text-white bg-slate-800 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500 transition-all duration-200"
+            className="inline-flex cursor-pointer items-center px-6 py-3 border border-transparent text-base font-medium rounded-2xl shadow-sm text-white bg-slate-800 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500 transition-all duration-200"
           >
             <Plus className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
             Add New Month

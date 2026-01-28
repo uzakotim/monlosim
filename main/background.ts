@@ -1,5 +1,5 @@
 import path from 'path'
-import { app, ipcMain } from 'electron'
+import { app, ipcMain, screen } from 'electron'
 import serve from 'electron-serve'
 import Store from 'electron-store'
 import { createWindow } from './helpers'
@@ -22,12 +22,71 @@ if (isProd) {
   await loadFromiCloud()
 
   const mainWindow = createWindow('main', {
-    width: 1000,
-    height: 600,
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-    },
-  })
+  width: 1200,
+  height: 800,
+  frame: false,
+  transparent: true,
+  webPreferences: {
+    preload: path.join(__dirname, 'preload.js'),
+  },
+})
+  // --- Manual Window State Management (The Fix) ---
+
+  // Use a variable to track if *we* are currently maximized via the custom button
+  let isMaximizedManually = false;
+  // Initialize originalBounds to the startup dimensions
+  let originalBounds = { x: 0, y: 0, width: 1200, height: 800 }; 
+  
+  // Wait for the window to actually finish loading/showing before capturing initial accurate position/bounds
+  mainWindow.once('ready-to-show', () => {
+    originalBounds = mainWindow.getBounds();
+  });
+
+  mainWindow.on('resize', () => {
+    if (!isMaximizedManually) {
+      originalBounds = mainWindow.getBounds();
+    }
+  });
+
+  mainWindow.on('move', () => {
+    if (!isMaximizedManually) {
+      originalBounds = mainWindow.getBounds();
+    }
+  });
+
+
+  ipcMain.on('window-control:minimize', () => {
+    if (mainWindow) mainWindow.minimize();
+  });
+
+  ipcMain.on('window-control:maximize', () => {
+    if (!mainWindow) return;
+
+    if (isMaximizedManually) {
+      // Restore the window using the saved bounds
+      mainWindow.setBounds(originalBounds, true);
+      isMaximizedManually = false;
+      mainWindow.webContents.send('window-state-changed', 'restored');
+    } else {
+      // Maximize the window manually
+      // 1. Save current bounds before we change them
+      originalBounds = mainWindow.getBounds(); 
+
+      // 2. Get the screen's usable work area
+      const display = screen.getDisplayNearestPoint(mainWindow.getBounds());
+      const workArea = display.workArea;
+      
+      // 3. Set window bounds to the work area
+      mainWindow.setBounds(workArea, true);
+      isMaximizedManually = true;
+      mainWindow.webContents.send('window-state-changed', 'maximized');
+    }
+  });
+
+  ipcMain.on('window-control:close', () => {
+    if (mainWindow) mainWindow.close();
+  });
+  // --- End Window Controls ---
 
   if (isProd) {
     await mainWindow.loadURL('app://./home')
