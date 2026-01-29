@@ -91,18 +91,29 @@ type StoreType = {
   data: RowType[]
 }
 
-const store = new Store<StoreType>({ name: 'monlosim_data' });
+const store = new Store<StoreType>({ name: 'monlosim_cache' });
 
-// Paths
-const localFile = path.join(os.homedir(), 'Library', 'Application Support', 'Monlosim', 'store.json');
-const iCloudFile = path.join(
+// Base directory for iCloud
+const iCloudDir = path.join(
   os.homedir(),
   'Library',
   'Mobile Documents',
   'com~apple~CloudDocs',
-  'Monlosim',
-  'store.json'
+  'Monlosim'
 );
+
+// We'll keep track of the current file in the main store or a separate file
+// For simplicity, let's use another store to keep track of the current active file
+const configStore = new Store({ name: 'monlosim_config' });
+let currentFilename = configStore.get('currentFile', 'store.json') as string;
+
+function getFilePath(filename: string) {
+  return path.join(iCloudDir, filename);
+}
+
+function getLocalFilePath(filename: string) {
+  return path.join(os.homedir(), 'Library', 'Application Support', 'Monlosim', filename);
+}
 
 // Helper to write JSON safely
 async function writeJSON(filePath: string, data: any) {
@@ -114,12 +125,18 @@ async function writeJSON(filePath: string, data: any) {
   }
 }
 
-store.onDidAnyChange(async () => {
-  // Always write locally first
-  await writeJSON(localFile, store.store);
+// Sync current data to files
+async function syncToFiles() {
+  const iCloudPath = getFilePath(currentFilename);
+  const localPath = getLocalFilePath(currentFilename);
+  
+  const data = store.store;
+  await writeJSON(localPath, data);
+  writeJSON(iCloudPath, data);
+}
 
-  // Then try to copy to iCloud (non-blocking)
-  writeJSON(iCloudFile, store.store);
+store.onDidAnyChange(async () => {
+  await syncToFiles();
 });
 
 // --- IPC Handlers ---
@@ -131,21 +148,58 @@ ipcMain.handle("store:set", (_, key, value) => {
   store.set(key, value);
 });
 
+ipcMain.handle("store:listFiles", async () => {
+  try {
+    await fs.mkdir(iCloudDir, { recursive: true });
+    const files = await fs.readdir(iCloudDir);
+    return files.filter(f => f.endsWith('.json'));
+  } catch (err) {
+    console.error("Failed to list files:", err);
+    return ['store.json'];
+  }
+});
+
+ipcMain.handle("store:createFile", async (_, filename) => {
+  if (!filename.endsWith('.json')) filename += '.json';
+  currentFilename = filename;
+  configStore.set('currentFile', filename);
+  
+  // Initialize with empty data
+  const defaultData: StoreType = { data: [] };
+  store.store = defaultData;
+  await syncToFiles();
+  return filename;
+});
+
+ipcMain.handle("store:loadFile", async (_, filename) => {
+  currentFilename = filename;
+  configStore.set('currentFile', filename);
+  await loadActiveFile();
+  return filename;
+});
+
+ipcMain.handle("store:getCurrentFile", () => {
+  return currentFilename;
+});
+
 // --- ---
 
+// Load the active file
+async function loadActiveFile() {
+  const iCloudPath = getFilePath(currentFilename);
+  const localPath = getLocalFilePath(currentFilename);
 
-// Optionally sync back
-async function loadFromiCloud() {
   let fileToLoad: string | null = null;
 
-  if (fsSync.existsSync(iCloudFile)) {
-    fileToLoad = iCloudFile;
-  } else if (fsSync.existsSync(localFile)) {
-    fileToLoad = localFile;
+  if (fsSync.existsSync(iCloudPath)) {
+    fileToLoad = iCloudPath;
+  } else if (fsSync.existsSync(localPath)) {
+    fileToLoad = localPath;
   }
 
   if (!fileToLoad) {
-    console.warn('No store file found in iCloud or local storage.');
+    console.warn(`No file found for ${currentFilename}. Initializing empty.`);
+    store.store = { data: [] };
     return;
   }
 
@@ -155,5 +209,11 @@ async function loadFromiCloud() {
     console.log(`Loaded store from ${fileToLoad}`);
   } catch (err) {
     console.error(`Failed to load store from ${fileToLoad}:`, err);
+    store.store = { data: [] };
   }
+}
+
+// Optionally sync back
+async function loadFromiCloud() {
+  await loadActiveFile();
 }
