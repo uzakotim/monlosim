@@ -41,14 +41,29 @@ function Page() {
     load();
   }, []);
 
+  let SCALE   = 1;
   const simulation = useMemo(() => {
     if (!rows || rows.length === 0) return null;
 
-    const SCALE = 1_000_000;
- 
+    // take maximal value of income and expenses and scale all values by its order of 10
+    
+    
+  
+    const maxIncome = Math.max(...rows.map(r => Number(r.income)));
+    const maxExpense = Math.max(...rows.map(r => Number(r.expenses)));
+    const maxValue = Math.max(maxIncome, maxExpense);
+    if (maxValue > 1_000_000_000) {
+      SCALE = 1_000_000_000;
+    } else if (maxValue > 1_000_000) {
+      SCALE = 1_000_000;
+    } else if (maxValue > 1_000) {
+      SCALE = 1_000;
+    } else {
+      SCALE = 1;
+    }
     const incomes = rows.map(r => Number(r.income) / SCALE);
     const expenses = rows.map(r => Number(r.expenses) / SCALE);
-
+    
     const avg = arr => arr.reduce((a, b) => a + b, 0) / arr.length;
     const std = arr => {
       const m = avg(arr);
@@ -113,7 +128,7 @@ labels: counts.map((_, i) =>
     x: {
       title: {
         display: true,
-        text: "Final Wealth (Millions) after 12 months",
+        text: `Final Wealth after 12 months (in ${SCALE == 1_000_000_000 ? "billions" : SCALE === 1_000_000 ? "millions" : SCALE === 1_000 ? "thousands" : "units"})`,
       },
     },
     y: {
@@ -130,19 +145,19 @@ labels: counts.map((_, i) =>
       <div className="flex flex-row items-start gap-4">
        
         <div className="flex flex-col justify-center">
-          <label htmlFor="startingWealth" className="text-md font-light">Starting Wealth (Millions)</label>
+          <label htmlFor="startingWealth" className="text-md font-light">Starting wealth (in {SCALE === 1_000_000_000 ? "billions" : SCALE === 1_000_000 ? "millions" : SCALE === 1_000 ? "thousands" : "units"})</label>
         <input
             id="startingWealth"
             type="number"
             value={startingWealth}
             onChange={e => setStartingWealth(Number(e.target.value))}
             className="border p-2 rounded-xl"
-            placeholder="Starting Wealth (Millions)"
-            aria-label="Starting Wealth in Millions"
+            placeholder={`Starting Wealth (in ${SCALE == 1_000_000_000 ? "billions" : SCALE === 1_000_000 ? "millions" : SCALE === 1_000 ? "thousands" : "units"})`}
+            aria-label="Starting Wealth"
           />
         </div>
         <div className="flex flex-col justify-center">
-          <label htmlFor="inflationRate" className="text-md font-light">Inflation Rate</label>
+          <label htmlFor="inflationRate" className="text-md font-light">Inflation rate (monthly %)</label>
         <input
             id="inflationRate"
             type="number"
@@ -160,7 +175,7 @@ labels: counts.map((_, i) =>
       </div>
       </div>
 
-      <Bar data={chartData} className="text-red-500" options={options} />
+      <Bar data={chartData} options={options} />
       <div className="flex flex-row justify-center gap-4">
        <Button onClick={() => (window.location.href = "/home")}>Back to Home</Button>
         <Button onClick={() => (window.location.href = "/montecarlo/page")}>Back to Data</Button>
