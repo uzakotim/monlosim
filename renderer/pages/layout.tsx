@@ -35,7 +35,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const handleMaximize = () => (window as any).ipc.maximizeWindow();
   const handleClose = () => (window as any).ipc.closeWindow();
- const [windowState, setWindowState] = useState('restored');
+  const [windowState, setWindowState] = useState('restored');
 
   useEffect(() => {
     // Listen for state changes from the main process
@@ -52,20 +52,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const contentClassName = `app-content ${windowState === 'maximized' ? 'maximized' : ''}`;
   return (
     <div className='bg-white'>
-      
+
       <div id="custom-title-bar" className="custom-titlebar" style={titleBarStyle}>
-       
-        
+
+
         {/* Window Controls */}
         <div style={buttonContainerStyle} className="window-controls">
           <button className="window-control-btn close" onClick={handleClose}>✕</button>
           <button className="window-control-btn" onClick={handleMinimize}>—</button>
           <button className="window-control-btn" onClick={handleMaximize}>
-            {windowState === 'maximized' ? '❐' : '◻'}
+            {windowState === 'maximized' ? '❐' : '☐'}
           </button>
         </div>
       </div>
-      
+
       <div className={contentClassName}>
         <ScaledTableWrapper>
           {children}

@@ -15,28 +15,30 @@ if (isProd) {
   app.setPath('userData', `${app.getPath('userData')} (development)`)
 }
 
-;(async () => {
+; (async () => {
   await app.whenReady()
 
   // Load from iCloud on startup
   await loadFromiCloud()
 
   const mainWindow = createWindow('main', {
-  width: 1200,
-  height: 800,
-  frame: false,
-  transparent: true,
-  webPreferences: {
-    preload: path.join(__dirname, 'preload.js'),
-  },
-})
+    width: 1200,
+    height: 800,
+    frame: false,
+    transparent: true,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+    },
+  })
   // --- Native Window State Management ---
   // We use native maximize/unmaximize as they provide the most simultaneous animation on macOS.
-  
+
   ipcMain.on('window-control:minimize', () => {
     if (!mainWindow) return;
 
-    if (mainWindow.isMaximized()) {
+    if (mainWindow.isFullScreen()) {
+      mainWindow.setFullScreen(false);
+    } else if (mainWindow.isMaximized()) {
       // If maximized, restore to original size per user request
       mainWindow.unmaximize();
     } else {
@@ -47,10 +49,10 @@ if (isProd) {
   ipcMain.on('window-control:maximize', () => {
     if (!mainWindow) return;
 
-    if (mainWindow.isMaximized()) {
-      mainWindow.unmaximize();
+    if (mainWindow.isFullScreen()) {
+      mainWindow.setFullScreen(false);
     } else {
-      mainWindow.maximize();
+      mainWindow.setFullScreen(true);
     }
   });
 
@@ -60,6 +62,14 @@ if (isProd) {
   });
 
   mainWindow.on('unmaximize', () => {
+    mainWindow.webContents.send('window-state-changed', 'restored');
+  });
+
+  mainWindow.on('enter-full-screen', () => {
+    mainWindow.webContents.send('window-state-changed', 'maximized');
+  });
+
+  mainWindow.on('leave-full-screen', () => {
     mainWindow.webContents.send('window-state-changed', 'restored');
   });
 
@@ -85,7 +95,7 @@ type RowType = {
   id: number
   monthYear: string   // "MMMM yyyy"
   income: number
-  expenses: number 
+  expenses: number
 }
 type StoreType = {
   data: RowType[]
@@ -129,7 +139,7 @@ async function writeJSON(filePath: string, data: any) {
 async function syncToFiles() {
   const iCloudPath = getFilePath(currentFilename);
   const localPath = getLocalFilePath(currentFilename);
-  
+
   const data = store.store;
   await writeJSON(localPath, data);
   writeJSON(iCloudPath, data);
@@ -163,7 +173,7 @@ ipcMain.handle("store:createFile", async (_, filename) => {
   if (!filename.endsWith('.json')) filename += '.json';
   currentFilename = filename;
   configStore.set('currentFile', filename);
-  
+
   // Initialize with empty data
   const defaultData: StoreType = { data: [] };
   store.store = defaultData;
