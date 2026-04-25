@@ -1,5 +1,3 @@
-# 💹 MonloSim
-
 ![MonloSim Hero Banner](resources/banner2.png)
 
 > **MonloSim** is a premium financial simulation desktop application that leverages **Monte Carlo methods** to provide deep insights into your financial future. Built with privacy and performance at its core.
@@ -16,7 +14,7 @@
 - **Monte Carlo Simulations**: Run thousands of iterations to project your portfolio's performance under various market conditions.
 - **Dynamic Visualizations**: Beautiful, interactive charts powered by Chart.js to help you visualize probability distributions and trends.
 - **Scenario Planning**: Compare different financial strategies and see their long-term impact on your wealth.
-- **Premium UI**: A sleek, dark-themed interface designed for clarity and a professional experience.
+- **Premium UI**: A sleek interface designed for clarity and a professional experience.
 
 ## 🔒 Privacy & Data Ownership
 
@@ -74,5 +72,5 @@ Your financial data is sensitive, and we treat it that way.
 ---
 
 <p align="center">
-  Built with ❤️ for financial freedom.
+  Built with ❤️ for finances.
 </p>
