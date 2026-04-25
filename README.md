@@ -1,6 +1,6 @@
 # 💹 MonloSim
 
-![MonloSim Hero Banner](resources/banner.png)
+![MonloSim Hero Banner](resources/banner2.png)
 
 > **MonloSim** is a premium financial simulation desktop application that leverages **Monte Carlo methods** to provide deep insights into your financial future. Built with privacy and performance at its core.
 
