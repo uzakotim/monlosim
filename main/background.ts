@@ -97,8 +97,16 @@ type RowType = {
   income: number
   expenses: number
 }
+type MpcParamsType = {
+  xInit: number
+  xRef: number
+  xMin: number
+  uMin: number
+  uMax: number
+}
 type StoreType = {
   data: RowType[]
+  mpcParams?: MpcParamsType
 }
 
 const store = new Store<StoreType>({ name: 'monlosim_cache' });
@@ -174,8 +182,11 @@ ipcMain.handle("store:createFile", async (_, filename) => {
   currentFilename = filename;
   configStore.set('currentFile', filename);
 
-  // Initialize with empty data
-  const defaultData: StoreType = { data: [] };
+  // Initialize with empty data and zero MPC params
+  const defaultData: StoreType = {
+    data: [],
+    mpcParams: { xInit: 0, xRef: 0, xMin: 0, uMin: 0, uMax: 0 },
+  };
   store.store = defaultData;
   await syncToFiles();
   return filename;
@@ -209,17 +220,22 @@ async function loadActiveFile() {
 
   if (!fileToLoad) {
     console.warn(`No file found for ${currentFilename}. Initializing empty.`);
-    store.store = { data: [] };
+    store.store = { data: [], mpcParams: { xInit: 0, xRef: 0, xMin: 0, uMin: 0, uMax: 0 } };
     return;
   }
 
   try {
     const data = await fs.readFile(fileToLoad, 'utf8');
-    store.store = JSON.parse(data);
+    const parsed: StoreType = JSON.parse(data);
+    // Backfill mpcParams if missing (legacy files)
+    if (!parsed.mpcParams) {
+      parsed.mpcParams = { xInit: 0, xRef: 0, xMin: 0, uMin: 0, uMax: 0 };
+    }
+    store.store = parsed;
     console.log(`Loaded store from ${fileToLoad}`);
   } catch (err) {
     console.error(`Failed to load store from ${fileToLoad}:`, err);
-    store.store = { data: [] };
+    store.store = { data: [], mpcParams: { xInit: 0, xRef: 0, xMin: 0, uMin: 0, uMax: 0 } };
   }
 }
 

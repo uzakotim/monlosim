@@ -185,7 +185,7 @@ function computeMPC(rows: Row[], params: MpcParams) {
     } else {
       // Case 2 — penalty active (x_next would fall below x_min)
       u = (q * (A - xRef) + wU * uBase + r * uPrev + penaltyW * (A - xMin)) /
-          (q + wU + r + penaltyW);
+        (q + wU + r + penaltyW);
     }
 
     u = Math.max(uMin, Math.min(effectiveUMax, u));
@@ -251,19 +251,40 @@ function Page() {
   const [showProgression, setShowProgression] = useState(false);
 
   // MPC params
-  const [xRef, setXRef] = useState(0);
-  const [xMin, setXMin] = useState(0);
-  const [uMin, setUMin] = useState(0);
-  const [uMax, setUMax] = useState(0);
+  const [loaded, setLoaded] = useState(false);
+  const [xRef, setXRef] = useState<number>(0);
+  const [xMin, setXMin] = useState<number>(0);
+  const [uMin, setUMin] = useState<number>(0);
+  const [uMax, setUMax] = useState<number>(0);
 
   useEffect(() => {
     async function load() {
       const stored = await window.ipc.getStore("data");
       if (Array.isArray(stored)) setRows(stored);
+      const params = await window.ipc.getStore("mpcParams");
+      if (params) {
+        if (typeof params.xInit === "number") setStartingWealth(params.xInit);
+        if (typeof params.xRef === "number") setXRef(params.xRef);
+        if (typeof params.xMin === "number") setXMin(params.xMin);
+        if (typeof params.uMin === "number") setUMin(params.uMin);
+        if (typeof params.uMax === "number") setUMax(params.uMax);
+      }
+      setLoaded(true);
     }
     load();
   }, []);
 
+  useEffect(() => {
+    if (!loaded) return;
+    window.ipc.setStore("mpcParams", {
+      xInit: startingWealth,
+      xRef,
+      xMin,
+      uMin,
+      uMax,
+    });
+
+  }, [loaded, startingWealth, xRef, xMin, uMin, uMax]);
   // ── Monte Carlo histogram (existing) ──────────────────────────────────────
   const { simulation, SCALE } = useMemo(() => {
     if (!rows || rows.length === 0) return { simulation: null, SCALE: 1 };
@@ -286,7 +307,7 @@ function Page() {
 
     const results: number[] = [];
     for (let i = 0; i < 100000; i++) {
-      let wealth = startingWealth;
+      let wealth = startingWealth / SCALE;
       for (let m = 0; m < 12; m++) {
         const income = Math.max(randNormal(avg(incomes), std(incomes)), 0);
         const expense = Math.max(
@@ -338,10 +359,10 @@ function Page() {
     SCALE === 1_000_000_000
       ? "billions"
       : SCALE === 1_000_000
-      ? "millions"
-      : SCALE === 1_000
-      ? "thousands"
-      : "units";
+        ? "millions"
+        : SCALE === 1_000
+          ? "thousands"
+          : "units";
 
   const histChartData = {
     labels: counts.map((_, i) => (hMin + i * step).toFixed(2)),
@@ -446,31 +467,31 @@ function Page() {
         // ── Reference lines ─────────────────────────────────────────────
         ...(xRef !== 0
           ? [
-              {
-                label: `Target (${(xRef / S).toFixed(1)}${sL})`,
-                data: xRefLine,
-                borderColor: "rgba(44,160,44,0.75)",
-                backgroundColor: "transparent",
-                borderWidth: 1.5,
-                borderDash: [7, 4],
-                pointRadius: 0,
-                fill: false,
-              },
-            ]
+            {
+              label: `Target (${(xRef / S).toFixed(1)}${sL})`,
+              data: xRefLine,
+              borderColor: "rgba(44,160,44,0.75)",
+              backgroundColor: "transparent",
+              borderWidth: 1.5,
+              borderDash: [7, 4],
+              pointRadius: 0,
+              fill: false,
+            },
+          ]
           : []),
         ...(xMin !== 0
           ? [
-              {
-                label: `Min Reserve (${(xMin / S).toFixed(1)}${sL})`,
-                data: xMinLine,
-                borderColor: "rgba(214,39,40,0.65)",
-                backgroundColor: "transparent",
-                borderWidth: 1.5,
-                borderDash: [3, 3],
-                pointRadius: 0,
-                fill: false,
-              },
-            ]
+            {
+              label: `Min Reserve (${(xMin / S).toFixed(1)}${sL})`,
+              data: xMinLine,
+              borderColor: "rgba(214,39,40,0.65)",
+              backgroundColor: "transparent",
+              borderWidth: 1.5,
+              borderDash: [3, 3],
+              pointRadius: 0,
+              fill: false,
+            },
+          ]
           : []),
         // ── Main lines ──────────────────────────────────────────────────
         {
@@ -680,8 +701,8 @@ function Page() {
             <input
               id="startingWealth"
               type="number"
-              value={startingWealth}
-              onChange={(e) => setStartingWealth(Number(e.target.value))}
+              value={SCALE > 1 ? startingWealth / SCALE : startingWealth}
+              onChange={(e) => setStartingWealth(Number(e.target.value) * SCALE)}
               className="border border-gray-300 p-2 rounded-xl text-sm w-36"
             />
           </div>
@@ -707,49 +728,49 @@ function Page() {
             <>
               <div className="flex flex-col">
                 <label htmlFor="xRef" className="text-xs font-medium text-gray-600 mb-1">
-                  Target Capital x_ref
+                  Target Capital x_ref ({scaleLabel})
                 </label>
                 <input
                   id="xRef"
                   type="number"
-                  value={xRef}
-                  onChange={(e) => setXRef(Number(e.target.value))}
+                  value={SCALE > 1 ? xRef / SCALE : xRef}
+                  onChange={(e) => setXRef(Number(e.target.value) * SCALE)}
                   className="border border-gray-300 p-2 rounded-xl text-sm w-36"
                 />
               </div>
               <div className="flex flex-col">
                 <label htmlFor="xMin" className="text-xs font-medium text-gray-600 mb-1">
-                  Min Reserve x_min
+                  Min Reserve x_min ({scaleLabel})
                 </label>
                 <input
                   id="xMin"
                   type="number"
-                  value={xMin}
-                  onChange={(e) => setXMin(Number(e.target.value))}
+                  value={SCALE > 1 ? xMin / SCALE : xMin}
+                  onChange={(e) => setXMin(Number(e.target.value) * SCALE)}
                   className="border border-gray-300 p-2 rounded-xl text-sm w-36"
                 />
               </div>
               <div className="flex flex-col">
                 <label htmlFor="uMin" className="text-xs font-medium text-gray-600 mb-1">
-                  Min Expense u_min
+                  Min Expense u_min ({scaleLabel})
                 </label>
                 <input
                   id="uMin"
                   type="number"
-                  value={uMin}
-                  onChange={(e) => setUMin(Number(e.target.value))}
+                  value={SCALE > 1 ? uMin / SCALE : uMin}
+                  onChange={(e) => setUMin(Number(e.target.value) * SCALE)}
                   className="border border-gray-300 p-2 rounded-xl text-sm w-36"
                 />
               </div>
               <div className="flex flex-col">
                 <label htmlFor="uMax" className="text-xs font-medium text-gray-600 mb-1">
-                  Max Expense u_max (0=∞)
+                  Max Expense u_max ({scaleLabel}, 0=∞)
                 </label>
                 <input
                   id="uMax"
                   type="number"
-                  value={uMax}
-                  onChange={(e) => setUMax(Number(e.target.value))}
+                  value={SCALE > 1 ? uMax / SCALE : uMax}
+                  onChange={(e) => setUMax(Number(e.target.value) * SCALE)}
                   className="border border-gray-300 p-2 rounded-xl text-sm w-36"
                 />
               </div>
