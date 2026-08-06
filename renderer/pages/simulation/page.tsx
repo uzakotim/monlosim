@@ -32,6 +32,7 @@ function Page() {
   const [rows, setRows] = useState(undefined);
   const [startingWealth, setStartingWealth] = useState(0);
   const [inflationRate, setInflationRate] = useState(0.83);
+  const [showProgression, setShowProgression] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -41,14 +42,14 @@ function Page() {
     load();
   }, []);
 
-  let SCALE   = 1;
+  let SCALE = 1;
   const simulation = useMemo(() => {
     if (!rows || rows.length === 0) return null;
 
     // take maximal value of income and expenses and scale all values by its order of 10
-    
-    
-  
+
+
+
     const maxIncome = Math.max(...rows.map(r => Number(r.income)));
     const maxExpense = Math.max(...rows.map(r => Number(r.expenses)));
     const maxValue = Math.max(maxIncome, maxExpense);
@@ -63,7 +64,7 @@ function Page() {
     }
     const incomes = rows.map(r => Number(r.income) / SCALE);
     const expenses = rows.map(r => Number(r.expenses) / SCALE);
-    
+
     const avg = arr => arr.reduce((a, b) => a + b, 0) / arr.length;
     const std = arr => {
       const m = avg(arr);
@@ -74,14 +75,14 @@ function Page() {
 
 
     const results = monteCarlo({
-    startingWealth: startingWealth,
-    incomeAvg: avg(incomes),
-    incomeStd: std(incomes),
-    expenseAvg: avg(expenses),
-    expenseStd: std(expenses),
-    inflationRate: inflationRate,
-    months: 12,     
-    runs: 100000,
+      startingWealth: startingWealth,
+      incomeAvg: avg(incomes),
+      incomeStd: std(incomes),
+      expenseAvg: avg(expenses),
+      expenseStd: std(expenses),
+      inflationRate: inflationRate,
+      months: 12,
+      runs: 100000,
     });
 
     results.sort((a, b) => a - b);
@@ -110,74 +111,84 @@ function Page() {
   });
 
   const chartData = {
-labels: counts.map((_, i) =>
-  (min + i * step).toFixed(2)
-),
+    labels: counts.map((_, i) =>
+      (min + i * step).toFixed(2)
+    ),
     datasets: [
       {
         label: "Final Wealth Distribution ",
         data: counts.map(c => c / simulation.results.length),
-         backgroundColor: "rgba(35, 87, 171, 0.6)", // blue with transparency
-      borderColor: "rgb(59, 130, 246)",
-      borderWidth: 1,
+        backgroundColor: "rgba(35, 87, 171, 0.6)", // blue with transparency
+        borderColor: "rgb(59, 130, 246)",
+        borderWidth: 1,
       },
     ],
   };
   const options = {
-  scales: {
-    x: {
-      title: {
-        display: true,
-        text: `Final Wealth after 12 months (in ${SCALE == 1_000_000_000 ? "billions" : SCALE === 1_000_000 ? "millions" : SCALE === 1_000 ? "thousands" : "units"})`,
+    scales: {
+      x: {
+        title: {
+          display: true,
+          text: `Final Wealth after 12 months (in ${SCALE == 1_000_000_000 ? "billions" : SCALE === 1_000_000 ? "millions" : SCALE === 1_000 ? "thousands" : "units"})`,
+        },
+      },
+      y: {
+        title: {
+          display: true,
+          text: "Probability Density",
+        },
       },
     },
-    y: {
-      title: {
-        display: true,
-        text: "Probability Density",
-      },
-    },
-  },
-};
+  };
 
   return (
     <div className="flex flex-col justify-center h-[calc(92vh)] p-10 gap-3">
-      <div className="flex flex-row items-start gap-4">
-       
-        <div className="flex flex-col justify-center">
-          <label htmlFor="startingWealth" className="text-md font-light">Starting wealth (in {SCALE === 1_000_000_000 ? "billions" : SCALE === 1_000_000 ? "millions" : SCALE === 1_000 ? "thousands" : "units"})</label>
-        <input
-            id="startingWealth"
-            type="number"
-            value={startingWealth}
-            onChange={e => setStartingWealth(Number(e.target.value))}
-            className="border p-2 rounded-xl"
-            placeholder={`Starting Wealth (in ${SCALE == 1_000_000_000 ? "billions" : SCALE === 1_000_000 ? "millions" : SCALE === 1_000 ? "thousands" : "units"})`}
-            aria-label="Starting Wealth"
-          />
+      <div className="flex flex-row justify-between items-start gap-4">
+        <div className="flex flex-row justify-start gap-4">
+          <div className="flex flex-col justify-center">
+            <label htmlFor="startingWealth" className="text-md font-light">Starting wealth (in {SCALE === 1_000_000_000 ? "billions" : SCALE === 1_000_000 ? "millions" : SCALE === 1_000 ? "thousands" : "units"})</label>
+            <input
+              id="startingWealth"
+              type="number"
+              value={startingWealth}
+              onChange={e => setStartingWealth(Number(e.target.value))}
+              className="border p-2 rounded-xl"
+              placeholder={`Starting Wealth (in ${SCALE == 1_000_000_000 ? "billions" : SCALE === 1_000_000 ? "millions" : SCALE === 1_000 ? "thousands" : "units"})`}
+              aria-label="Starting Wealth"
+            />
+          </div>
+          <div className="flex flex-col justify-center">
+            <label htmlFor="inflationRate" className="text-md font-light">Inflation rate (monthly %)</label>
+            <input
+              id="inflationRate"
+              type="number"
+              value={inflationRate}
+              onChange={e => setInflationRate(Number(e.target.value))}
+              className="border p-2 rounded-xl"
+              placeholder="Inflation Rate"
+              aria-label="Inflation Rate"
+            />
+          </div>
+          <div className="text-sm text-center">
+            <div>Mean: {simulation.mean.toFixed(2)}</div>
+            <div>Median: {simulation.median.toFixed(2)}</div>
+            <div>10–90% range: {simulation.p10.toFixed(2)} – {simulation.p90.toFixed(2)}</div>
+          </div>
         </div>
-        <div className="flex flex-col justify-center">
-          <label htmlFor="inflationRate" className="text-md font-light">Inflation rate (monthly %)</label>
-        <input
-            id="inflationRate"
-            type="number"
-            value={inflationRate}
-            onChange={e => setInflationRate(Number(e.target.value))}
-            className="border p-2 rounded-xl"
-            placeholder="Inflation Rate"
-            aria-label="Inflation Rate"
-          />
+        <div className="flex w-[300px] flex-col justify-center">
+          <label htmlFor="inflationRate" className="text-md font-light">Wealth progression and control sequence</label>
+          <Button onClick={() => setShowProgression(!showProgression)}>{showProgression ? "Hide" : "Show"}</Button>
         </div>
-        <div className="text-sm text-center">
-        <div>Mean: {simulation.mean.toFixed(2)}</div>
-<div>Median: {simulation.median.toFixed(2)}</div>
-<div>10–90% range: {simulation.p10.toFixed(2)} – {simulation.p90.toFixed(2)}</div>
-      </div>
       </div>
 
-      <Bar data={chartData} options={options} />
+      {showProgression ?
+        <></> :
+        <>
+          <Bar data={chartData} options={options} />
+        </>
+      }
       <div className="flex flex-row justify-center gap-4">
-       <Button onClick={() => (window.location.href = "/home")}>Back to Home</Button>
+        <Button onClick={() => (window.location.href = "/home")}>Back to Home</Button>
         <Button onClick={() => (window.location.href = "/montecarlo/page")}>Back to Data</Button>
       </div>
     </div>
