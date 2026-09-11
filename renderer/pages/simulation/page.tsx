@@ -369,7 +369,7 @@ function Page() {
     datasets: [
       {
         label: "Final Wealth Distribution",
-        data: counts.map((c) => c / simulation.results.length),
+        data: counts.map((c) => (c / simulation.results.length) * 1000),
         backgroundColor: "rgba(35, 87, 171, 0.6)",
         borderColor: "rgb(59, 130, 246)",
         borderWidth: 1,
@@ -379,7 +379,20 @@ function Page() {
   const histOptions = {
     scales: {
       x: { title: { display: true, text: `Final Wealth after 12 months (in ${scaleLabel})` } },
-      y: { title: { display: true, text: "Probability Density" } },
+      y: {
+        title: { display: true, text: "Probability (%)" },
+        ticks: {
+          callback: (value: number | string) => `${value}%`,
+        },
+      },
+    },
+    plugins: {
+      tooltip: {
+        callbacks: {
+          label: (ctx: { parsed: { y: number } }) =>
+            `${ctx.parsed.y.toFixed(2)}%`,
+        },
+      },
     },
   };
 
