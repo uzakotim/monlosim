@@ -75,6 +75,41 @@ function arrStd(arr: number[]): number {
   return Math.sqrt(arr.reduce((s, x) => s + (x - m) ** 2, 0) / (arr.length - 1));
 }
 
+interface LinearTrendResult {
+  slope: number;
+  intercept: number;
+  trendValues: number[];
+  growthPercent: number;
+}
+
+/** Computes least-squares linear trendline y = slope * x + intercept across the whole data */
+function computeLinearTrend(values: number[]): LinearTrendResult {
+  const n = values.length;
+  if (n === 0) return { slope: 0, intercept: 0, trendValues: [], growthPercent: 0 };
+  if (n === 1) return { slope: 0, intercept: values[0], trendValues: [values[0]], growthPercent: 0 };
+
+  const xMean = (n - 1) / 2;
+  const yMean = values.reduce((a, b) => a + b, 0) / n;
+
+  let num = 0;
+  let den = 0;
+  for (let i = 0; i < n; i++) {
+    const dx = i - xMean;
+    num += dx * (values[i] - yMean);
+    den += dx * dx;
+  }
+
+  const slope = den !== 0 ? num / den : 0;
+  const intercept = yMean - slope * xMean;
+
+  const trendValues = values.map((_, i) => slope * i + intercept);
+  const trendStart = trendValues[0];
+  const trendEnd = trendValues[n - 1];
+  const growthPercent = trendStart !== 0 ? ((trendEnd - trendStart) / Math.abs(trendStart)) * 100 : 0;
+
+  return { slope, intercept, trendValues, growthPercent };
+}
+
 function shortLabel(monthYear: string): string {
   return monthYear
     .replace("January", "Jan")
@@ -271,7 +306,7 @@ function Page() {
   const [inflationRate, setInflationRate] = useState(0.83);
   const [activeTab, setActiveTab] = useState<TabType>("montecarlo");
   const [trendViewMode, setTrendViewMode] = useState<"combined" | "curves" | "cumulative">("combined");
-  const [showMovingAverage, setShowMovingAverage] = useState(true);
+  const [showLinearTrends, setShowLinearTrends] = useState(true);
 
   // MPC params
   const [loaded, setLoaded] = useState(false);
@@ -383,16 +418,11 @@ function Page() {
       cumulative.push(running);
     }
 
-    // 3-Month Moving Averages
-    const maIncomes: (number | null)[] = [];
-    const maExpenses: (number | null)[] = [];
-    for (let i = 0; i < rows.length; i++) {
-      const windowStart = Math.max(0, i - 2);
-      const incWindow = incomes.slice(windowStart, i + 1);
-      const expWindow = expenses.slice(windowStart, i + 1);
-      maIncomes.push(arrAvg(incWindow));
-      maExpenses.push(arrAvg(expWindow));
-    }
+    // Linear regression trends across the entire dataset
+    const incTrend = computeLinearTrend(incomes);
+    const expTrend = computeLinearTrend(expenses);
+    const slopeDiff = incTrend.slope - expTrend.slope;
+    const isIncomeGrowingFaster = slopeDiff > 0;
 
     const totalIncome = incomes.reduce((a, b) => a + b, 0);
     const totalExpenses = expenses.reduce((a, b) => a + b, 0);
@@ -418,8 +448,10 @@ function Page() {
       expenses,
       netFlows,
       cumulative,
-      maIncomes,
-      maExpenses,
+      incTrend,
+      expTrend,
+      slopeDiff,
+      isIncomeGrowingFaster,
       totalIncome,
       totalExpenses,
       totalNet,
@@ -876,8 +908,8 @@ function Page() {
       expenses,
       netFlows,
       cumulative,
-      maIncomes,
-      maExpenses,
+      incTrend,
+      expTrend,
       S,
       sL,
     } = trendsData;
@@ -952,32 +984,34 @@ function Page() {
             tension: 0.3,
             order: 2,
           },
-          ...(showMovingAverage && rows.length >= 3
+          ...(showLinearTrends && rows.length >= 2
             ? [
               {
                 type: "line" as const,
-                label: "Income (3M Moving Avg)",
-                data: maIncomes.map((v) => (v !== null ? v / S : null)),
-                borderColor: "rgba(5, 150, 105, 0.7)",
+                label: `Income Trendline (${trendsData.incTrend.slope >= 0 ? "+" : ""}${formatNum(trendsData.incTrend.slope / S)} ${sL}/mo)`,
+                data: trendsData.incTrend.trendValues.map((v) => v / S),
+                borderColor: "#047857",
                 backgroundColor: "transparent",
-                borderWidth: 1.8,
-                borderDash: [5, 4],
+                borderWidth: 2.5,
+                borderDash: [6, 4],
                 pointRadius: 0,
+                pointHoverRadius: 5,
                 fill: false,
-                tension: 0.3,
+                tension: 0,
                 order: 0,
               },
               {
                 type: "line" as const,
-                label: "Expense (3M Moving Avg)",
-                data: maExpenses.map((v) => (v !== null ? v / S : null)),
-                borderColor: "rgba(220, 38, 38, 0.7)",
+                label: `Expense Trendline (${trendsData.expTrend.slope >= 0 ? "+" : ""}${formatNum(trendsData.expTrend.slope / S)} ${sL}/mo)`,
+                data: trendsData.expTrend.trendValues.map((v) => v / S),
+                borderColor: "#b91c1c",
                 backgroundColor: "transparent",
-                borderWidth: 1.8,
-                borderDash: [5, 4],
+                borderWidth: 2.5,
+                borderDash: [6, 4],
                 pointRadius: 0,
+                pointHoverRadius: 5,
                 fill: false,
-                tension: 0.3,
+                tension: 0,
                 order: 0,
               },
             ]
@@ -1264,14 +1298,14 @@ function Page() {
                 </div>
 
                 {trendViewMode !== "cumulative" && (
-                  <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-700 mt-5 select-none">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700 mt-5 select-none bg-slate-50 hover:bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-xl transition-colors">
                     <input
                       type="checkbox"
-                      checked={showMovingAverage}
-                      onChange={(e) => setShowMovingAverage(e.target.checked)}
-                      className="rounded text-blue-600 focus:ring-blue-500"
+                      checked={showLinearTrends}
+                      onChange={(e) => setShowLinearTrends(e.target.checked)}
+                      className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
                     />
-                    <span>Show 3-Month Moving Average</span>
+                    <span>Show Overall Trendlines</span>
                   </label>
                 )}
               </div>
@@ -1291,7 +1325,7 @@ function Page() {
               <span>Calculated optimal monthly spending u* against P10/P90 log-normal income bounds.</span>
             )}
             {activeTab === "trends" && (
-              <span>Detailed evolution of income, expenditure, and net savings across historical periods.</span>
+              <span>Historical income &amp; expense trends with linear slope fit to compare growth velocities.</span>
             )}
           </div>
         </div>
@@ -1494,26 +1528,60 @@ function Page() {
           <>
             <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
               <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                Total Lifetime Income
+                Income Growth Trend
               </span>
               <p className="text-lg font-bold text-emerald-600 mt-0.5">
-                {formatNum(trendsData.totalIncome / trendsData.S)}{" "}
-                <span className="text-xs font-medium text-slate-500">{trendsData.sL} SUM</span>
+                {trendsData.incTrend.slope >= 0 ? "+" : ""}
+                {formatNum(trendsData.incTrend.slope / trendsData.S)}{" "}
+                <span className="text-xs font-medium text-slate-500">{trendsData.sL} SUM/mo</span>
               </p>
               <span className="text-[11px] text-slate-500 font-medium">
-                Avg: {formatNum(trendsData.avgMonthlyIncome / trendsData.S)} {trendsData.sL}/mo
+                Overall fit: {trendsData.incTrend.growthPercent >= 0 ? "+" : ""}
+                {trendsData.incTrend.growthPercent.toFixed(1)}% total
               </span>
             </div>
             <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
               <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                Total Lifetime Expenses
+                Expense Growth Trend
               </span>
               <p className="text-lg font-bold text-red-600 mt-0.5">
-                {formatNum(trendsData.totalExpenses / trendsData.S)}{" "}
-                <span className="text-xs font-medium text-slate-500">{trendsData.sL} SUM</span>
+                {trendsData.expTrend.slope >= 0 ? "+" : ""}
+                {formatNum(trendsData.expTrend.slope / trendsData.S)}{" "}
+                <span className="text-xs font-medium text-slate-500">{trendsData.sL} SUM/mo</span>
               </p>
               <span className="text-[11px] text-slate-500 font-medium">
-                Avg: {formatNum(trendsData.avgMonthlyExpenses / trendsData.S)} {trendsData.sL}/mo
+                Overall fit: {trendsData.expTrend.growthPercent >= 0 ? "+" : ""}
+                {trendsData.expTrend.growthPercent.toFixed(1)}% total
+              </span>
+            </div>
+            <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                Growth Velocity Verdict
+              </span>
+              <p
+                className={`text-lg font-bold mt-0.5 flex items-center gap-1 ${
+                  trendsData.isIncomeGrowingFaster ? "text-emerald-600" : "text-amber-600"
+                }`}
+              >
+                {trendsData.isIncomeGrowingFaster ? (
+                  <>
+                    <ArrowUpRight className="w-5 h-5 shrink-0" />
+                    <span>Income Faster</span>
+                  </>
+                ) : (
+                  <>
+                    <ArrowDownRight className="w-5 h-5 shrink-0" />
+                    <span>Expenses Faster</span>
+                  </>
+                )}
+              </p>
+              <span
+                className={`text-[11px] font-semibold ${
+                  trendsData.isIncomeGrowingFaster ? "text-emerald-600" : "text-amber-600"
+                }`}
+              >
+                Net: {trendsData.slopeDiff >= 0 ? "+" : ""}
+                {formatNum(trendsData.slopeDiff / trendsData.S)} {trendsData.sL} SUM/mo
               </span>
             </div>
             <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
@@ -1529,22 +1597,7 @@ function Page() {
                 <span className="text-xs font-medium text-slate-500">{trendsData.sL} SUM</span>
               </p>
               <span className="text-[11px] text-slate-500 font-medium">
-                Net Accumulated Cash
-              </span>
-            </div>
-            <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
-              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                Savings Margin
-              </span>
-              <p
-                className={`text-lg font-bold mt-0.5 ${
-                  trendsData.savingsRate >= 0 ? "text-emerald-600" : "text-red-600"
-                }`}
-              >
-                {trendsData.savingsRate.toFixed(1)}%
-              </p>
-              <span className="text-[11px] text-slate-500 font-medium">
-                Retained of Gross Income
+                Savings Margin: {trendsData.savingsRate.toFixed(1)}%
               </span>
             </div>
             <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
@@ -1579,18 +1632,41 @@ function Page() {
                 {activeTab === "montecarlo" && "Final Wealth Probability Distribution (12-Month Monte Carlo)"}
                 {activeTab === "mpc-capital" && "Capital Trajectory: Historical Evolution + MPC Forecast with P10–P90 Band"}
                 {activeTab === "mpc-spending" && "Income & Expenditure Profile + MPC Optimized Spending Plan (u*)"}
-                {activeTab === "trends" && "Historical Financial Trends: Income, Expenditure & Net Cashflow"}
+                {activeTab === "trends" && "Historical Financial Trends: Income, Expenditure & Linear Fit Trendlines"}
               </h3>
               <p className="text-xs text-slate-400">
                 {activeTab === "montecarlo" && "Visualizes the dispersion of final outcomes and tail risks across 100k random stochastic trials."}
                 {activeTab === "mpc-capital" && "Tracks capital progression with reference tracking (x_ref) and reserve boundary constraints (x_min)."}
                 {activeTab === "mpc-spending" && "Balances consumption smoothing with probabilistic revenue expectations."}
-                {activeTab === "trends" && "Analyzes monthly income velocity, cost trends, and overall cashflow surplus."}
+                {activeTab === "trends" && "Compares income velocity vs expense growth slopes over the entire historical horizon."}
               </p>
             </div>
           </div>
-          <div className="text-xs text-slate-400 font-medium hidden sm:block">
-            {rows.length} Historical Records
+          <div className="flex items-center gap-3">
+            {activeTab === "trends" && trendsData && (
+              <span
+                className={`text-xs px-2.5 py-1 rounded-lg font-semibold inline-flex items-center gap-1.5 border ${
+                  trendsData.isIncomeGrowingFaster
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    : "bg-amber-50 text-amber-700 border-amber-200"
+                }`}
+              >
+                {trendsData.isIncomeGrowingFaster ? (
+                  <>
+                    <ArrowUpRight className="w-3.5 h-3.5" />
+                    <span>Income growing faster (+{formatNum(trendsData.slopeDiff / trendsData.S)} {trendsData.sL}/mo pace)</span>
+                  </>
+                ) : (
+                  <>
+                    <ArrowDownRight className="w-3.5 h-3.5" />
+                    <span>Expenses growing faster (-{formatNum(Math.abs(trendsData.slopeDiff) / trendsData.S)} {trendsData.sL}/mo pace)</span>
+                  </>
+                )}
+              </span>
+            )}
+            <div className="text-xs text-slate-400 font-medium hidden sm:block">
+              {rows.length} Historical Records
+            </div>
           </div>
         </div>
 
