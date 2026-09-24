@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import Button from "../../components/Button";
 import TableComponent from "../../components/TableComponent";
 import { format, addMonths, parse } from "date-fns";
-import { Plus } from 'lucide-react';
+import { Plus, BarChart3, Home } from 'lucide-react';
 
 function Page() {
   
@@ -90,20 +90,27 @@ function Page() {
             <Plus className="-ml-1 mr-2 h-5 w-5" aria-hidden="true" />
             Add New Month
           </button>
-          <div className="flex flex-row gap-5">
+          <div className="flex flex-row gap-4 items-center">
             <Button
               onClick={() => {
                 window.location.href = "/home";
               }}
             >
-              Back to Home
+              <div className="flex items-center gap-2">
+                <Home className="w-4 h-4" />
+                Back to Home
+              </div>
             </Button>
             <Button
+              variant="primary"
               onClick={() => {
                 window.location.href = "/simulation/page";
               }}
             >
-              Run Simulation
+              <div className="flex items-center gap-2 font-semibold">
+                <BarChart3 className="w-4 h-4" />
+                Run Simulation
+              </div>
             </Button>
           </div>
            

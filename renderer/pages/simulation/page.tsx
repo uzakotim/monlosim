@@ -14,6 +14,23 @@ import {
 } from "chart.js";
 import { Bar, Chart, Line } from "react-chartjs-2";
 import { addMonths, format, parse } from "date-fns";
+import {
+  BarChart3,
+  TrendingUp,
+  Target,
+  LineChart,
+  ArrowLeft,
+  Home,
+  DollarSign,
+  PiggyBank,
+  TrendingDown,
+  Sparkles,
+  Info,
+  Calendar,
+  Layers,
+  ArrowUpRight,
+  ArrowDownRight,
+} from "lucide-react";
 
 ChartJS.register(
   BarElement,
@@ -77,7 +94,23 @@ function pctOfSorted(sorted: number[], p: number): number {
   return sorted[Math.min(Math.floor(sorted.length * p), sorted.length - 1)];
 }
 
-// ─── MPC Engine ──────────────────────────────────────────────────────────────
+// ─── Scale helper ─────────────────────────────────────────────────────────────
+
+function getScale(maxVal: number) {
+  if (maxVal > 1e9) return { S: 1e9, label: "B" };
+  if (maxVal > 1e6) return { S: 1e6, label: "M" };
+  if (maxVal > 1e3) return { S: 1e3, label: "K" };
+  return { S: 1, label: "" };
+}
+
+function formatNum(val: number, decimals: number = 2): string {
+  return val.toLocaleString(undefined, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+}
+
+// ─── Types & MPC Engine ──────────────────────────────────────────────────────
 
 interface MpcParams {
   xInit: number;
@@ -94,6 +127,8 @@ interface Row {
   expenses: number;
 }
 
+type TabType = "montecarlo" | "mpc-capital" | "mpc-spending" | "trends";
+
 function computeMPC(rows: Row[], params: MpcParams) {
   const { xInit, xRef, xMin, uMin, uMax } = params;
   const T = rows.length;
@@ -107,7 +142,7 @@ function computeMPC(rows: Row[], params: MpcParams) {
   const NUM_FORECAST = 12;
   const NUM_SIM = 5000;
 
-  // MPC cost weights (same as Python)
+  // MPC cost weights
   const q = 0.5,
     wU = 0.4,
     r = 0.1,
@@ -121,8 +156,7 @@ function computeMPC(rows: Row[], params: MpcParams) {
   }
   const xCurrent = xPast[T];
 
-  // 2. Forecast 12 months — for each future month, average historical rows
-  //    with the same calendar month name, then apply 5 %/6 % growth.
+  // 2. Forecast 12 months
   const lastDate = parse(rows[T - 1].monthYear, "MMMM yyyy", new Date());
   const futureLabels: string[] = [];
   const futureIncMean: number[] = [];
@@ -153,7 +187,7 @@ function computeMPC(rows: Row[], params: MpcParams) {
     simInc.push(futureIncMean.map((m, i) => randLogNormal(m, stdIncomes[i])));
   }
 
-  // Income P10/P90 for the bottom bar chart error overlay
+  // Income P10/P90 for bottom bar chart error overlay
   const p10Inc: number[] = [];
   const p90Inc: number[] = [];
   for (let i = 0; i < NUM_FORECAST; i++) {
@@ -162,11 +196,7 @@ function computeMPC(rows: Row[], params: MpcParams) {
     p90Inc.push(pctOfSorted(vals, 0.9));
   }
 
-  // 5. MPC: closed-form greedy receding-horizon (one step ahead, analytically optimal)
-  //    cost: q*(x_next - x_ref)^2 + wU*(u - u_base)^2 + r*(u - u_prev)^2
-  //          + penaltyW*max(0, x_min - x_next)^2
-  //    x_next = x_k + income_k - u   (monthly_yield=0 for simplicity)
-  //    ∂J/∂u = 0  →  two-case closed form
+  // 5. MPC: closed-form greedy receding-horizon
   const uFuture: number[] = [];
   const xFuture: number[] = [xCurrent];
   const effectiveUMax = uMax > 0 ? uMax : 1e15;
@@ -194,7 +224,6 @@ function computeMPC(rows: Row[], params: MpcParams) {
   }
 
   // 6. Capital Monte Carlo with the MPC plan applied
-  //    Accumulate percentile data column-by-column to save memory
   const simCapCols: number[][] = Array.from({ length: NUM_FORECAST + 1 }, () => []);
   for (let s = 0; s < NUM_SIM; s++) {
     let xs = xCurrent;
@@ -227,19 +256,11 @@ function computeMPC(rows: Row[], params: MpcParams) {
     futureIncMean,
     futureExpBase,
     stdIncomes,
+    stdExpenses,
     uFuture,
     p10Inc,
     p90Inc,
   };
-}
-
-// ─── Scale helper ─────────────────────────────────────────────────────────────
-
-function getScale(maxVal: number) {
-  if (maxVal > 1e9) return { S: 1e9, label: "B" };
-  if (maxVal > 1e6) return { S: 1e6, label: "M" };
-  if (maxVal > 1e3) return { S: 1e3, label: "K" };
-  return { S: 1, label: "" };
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -248,7 +269,9 @@ function Page() {
   const [rows, setRows] = useState<Row[] | undefined>(undefined);
   const [startingWealth, setStartingWealth] = useState(0);
   const [inflationRate, setInflationRate] = useState(0.83);
-  const [showProgression, setShowProgression] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabType>("montecarlo");
+  const [trendViewMode, setTrendViewMode] = useState<"combined" | "curves" | "cumulative">("combined");
+  const [showMovingAverage, setShowMovingAverage] = useState(true);
 
   // MPC params
   const [loaded, setLoaded] = useState(false);
@@ -259,9 +282,9 @@ function Page() {
 
   useEffect(() => {
     async function load() {
-      const stored = await window.ipc.getStore("data");
+      const stored = await (window as any).ipc.getStore("data");
       if (Array.isArray(stored)) setRows(stored);
-      const params = await window.ipc.getStore("mpcParams");
+      const params = await (window as any).ipc.getStore("mpcParams");
       if (params) {
         if (typeof params.xInit === "number") setStartingWealth(params.xInit);
         if (typeof params.xRef === "number") setXRef(params.xRef);
@@ -276,16 +299,16 @@ function Page() {
 
   useEffect(() => {
     if (!loaded) return;
-    window.ipc.setStore("mpcParams", {
+    (window as any).ipc.setStore("mpcParams", {
       xInit: startingWealth,
       xRef,
       xMin,
       uMin,
       uMax,
     });
-
   }, [loaded, startingWealth, xRef, xMin, uMin, uMax]);
-  // ── Monte Carlo histogram (existing) ──────────────────────────────────────
+
+  // ── Monte Carlo Histogram Computation ──────────────────────────────────────
   const { simulation, SCALE } = useMemo(() => {
     if (!rows || rows.length === 0) return { simulation: null, SCALE: 1 };
 
@@ -332,29 +355,115 @@ function Page() {
     };
   }, [rows, startingWealth, inflationRate]);
 
-  // ── MPC computation ───────────────────────────────────────────────────────
+  // ── MPC Computation ────────────────────────────────────────────────────────
   const mpcResult = useMemo(() => {
     if (!rows || rows.length === 0) return null;
     try {
       return computeMPC(rows, { xInit: startingWealth, xRef, xMin, uMin, uMax });
     } catch (e) {
-      console.error("MPC error:", e);
+      console.error("MPC calculation error:", e);
       return null;
     }
   }, [rows, startingWealth, xRef, xMin, uMin, uMax]);
 
-  if (!simulation) return <div className="p-4">Loading…</div>;
+  // ── Historical Trends Computation ──────────────────────────────────────────
+  const trendsData = useMemo(() => {
+    if (!rows || rows.length === 0) return null;
 
-  // ── Histogram chart data ──────────────────────────────────────────────────
-  const bins = 50;
-  const hMin = simulation.results[0];
-  const hMax = simulation.results[simulation.results.length - 1];
-  const step = (hMax - hMin) / bins;
-  const counts = new Array(bins).fill(0);
-  simulation.results.forEach((v) => {
-    const i = Math.min(Math.floor((v - hMin) / step), bins - 1);
-    counts[i]++;
-  });
+    const labels = rows.map((r) => shortLabel(r.monthYear));
+    const incomes = rows.map((r) => Number(r.income));
+    const expenses = rows.map((r) => Number(r.expenses));
+    const netFlows = rows.map((r) => Number(r.income) - Number(r.expenses));
+
+    // Cumulative net cashflow starting from startingWealth
+    const cumulative: number[] = [];
+    let running = startingWealth;
+    for (let i = 0; i < rows.length; i++) {
+      running += netFlows[i];
+      cumulative.push(running);
+    }
+
+    // 3-Month Moving Averages
+    const maIncomes: (number | null)[] = [];
+    const maExpenses: (number | null)[] = [];
+    for (let i = 0; i < rows.length; i++) {
+      const windowStart = Math.max(0, i - 2);
+      const incWindow = incomes.slice(windowStart, i + 1);
+      const expWindow = expenses.slice(windowStart, i + 1);
+      maIncomes.push(arrAvg(incWindow));
+      maExpenses.push(arrAvg(expWindow));
+    }
+
+    const totalIncome = incomes.reduce((a, b) => a + b, 0);
+    const totalExpenses = expenses.reduce((a, b) => a + b, 0);
+    const totalNet = totalIncome - totalExpenses;
+    const avgMonthlyIncome = totalIncome / rows.length;
+    const avgMonthlyExpenses = totalExpenses / rows.length;
+    const avgMonthlyNet = totalNet / rows.length;
+    const savingsRate = totalIncome > 0 ? (totalNet / totalIncome) * 100 : 0;
+    const surplusMonthsCount = netFlows.filter((n) => n >= 0).length;
+
+    // Scale determination
+    const maxVal = Math.max(
+      ...incomes,
+      ...expenses,
+      ...netFlows.map(Math.abs),
+      ...cumulative.map(Math.abs)
+    );
+    const { S, label: sL } = getScale(maxVal);
+
+    return {
+      labels,
+      incomes,
+      expenses,
+      netFlows,
+      cumulative,
+      maIncomes,
+      maExpenses,
+      totalIncome,
+      totalExpenses,
+      totalNet,
+      avgMonthlyIncome,
+      avgMonthlyExpenses,
+      avgMonthlyNet,
+      savingsRate,
+      surplusMonthsCount,
+      S,
+      sL,
+    };
+  }, [rows, startingWealth]);
+
+  // Loading state
+  if (!rows || !simulation) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[75vh] gap-3">
+        <div className="w-10 h-10 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin" />
+        <p className="text-sm font-medium text-slate-500">Preparing financial simulation data...</p>
+      </div>
+    );
+  }
+
+  // Empty data state
+  if (rows.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[75vh] gap-4 p-8 text-center bg-white rounded-2xl border border-slate-200 shadow-xs max-w-md mx-auto">
+        <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
+          <Layers className="w-8 h-8" />
+        </div>
+        <h3 className="text-lg font-semibold text-slate-800">No Historical Records Found</h3>
+        <p className="text-sm text-slate-500">
+          Please add at least one month of income and expense data to generate Monte Carlo distributions, MPC forecasts, and financial trends.
+        </p>
+        <Button onClick={() => (window.location.href = "/montecarlo/page")}>
+          <div className="flex items-center gap-2">
+            <ArrowLeft className="w-4 h-4" />
+            Go to Data Input
+          </div>
+        </Button>
+      </div>
+    );
+  }
+
   const scaleLabel =
     SCALE === 1_000_000_000
       ? "billions"
@@ -364,49 +473,246 @@ function Page() {
           ? "thousands"
           : "units";
 
+  // ─── 1. HISTOGRAM (Monte Carlo) Chart Config ──────────────────────────────
+  const bins = 50;
+  const hMin = simulation.results[0];
+  const hMax = simulation.results[simulation.results.length - 1];
+  const step = (hMax - hMin) / bins;
+  const counts = new Array(bins).fill(0);
+  simulation.results.forEach((v) => {
+    const i = Math.min(Math.floor((v - hMin) / step), bins - 1);
+    counts[i]++;
+  });
+
   const histChartData = {
     labels: counts.map((_, i) => (hMin + i * step).toFixed(2)),
     datasets: [
       {
         label: "Final Wealth Distribution",
-        data: counts.map((c) => (c / simulation.results.length) * 1000),
-        backgroundColor: "rgba(35, 87, 171, 0.6)",
-        borderColor: "rgb(59, 130, 246)",
-        borderWidth: 1,
+        data: counts.map((c) => (c / simulation.results.length) * 100),
+        backgroundColor: "rgba(37, 99, 235, 0.65)",
+        hoverBackgroundColor: "rgba(29, 78, 216, 0.85)",
+        borderColor: "rgb(37, 99, 235)",
+        borderWidth: 1.5,
+        borderRadius: 4,
       },
     ],
   };
+
   const histOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 350 },
     scales: {
-      x: { title: { display: true, text: `Final Wealth after 12 months (in ${scaleLabel})` } },
+      x: {
+        grid: { color: "rgba(226, 232, 240, 0.6)" },
+        title: {
+          display: true,
+          text: `Final Wealth after 12 months (in ${scaleLabel} SUM)`,
+          font: { size: 12, weight: "bold" as const },
+          color: "#475569",
+        },
+        ticks: { font: { size: 10 }, color: "#64748b" },
+      },
       y: {
-        title: { display: true, text: "Probability (%)" },
+        grid: { color: "rgba(226, 232, 240, 0.6)" },
+        title: {
+          display: true,
+          text: "Probability (%)",
+          font: { size: 12, weight: "bold" as const },
+          color: "#475569",
+        },
         ticks: {
-          callback: (value: number | string) => `${value}%`,
+          font: { size: 10 },
+          color: "#64748b",
+          callback: (value: number | string) => `${Number(value).toFixed(1)}%`,
         },
       },
     },
     plugins: {
+      legend: {
+        display: true,
+        position: "top" as const,
+        labels: { font: { size: 11, weight: "bold" as const }, color: "#334155" },
+      },
       tooltip: {
+        backgroundColor: "rgba(15, 23, 42, 0.9)",
+        titleFont: { size: 12 },
+        bodyFont: { size: 12 },
+        padding: 10,
+        cornerRadius: 8,
         callbacks: {
-          label: (ctx: { parsed: { y: number } }) =>
-            `${ctx.parsed.y.toFixed(2)}%`,
+          title: (items: any) => `Wealth: ~${items[0].label} ${scaleLabel}`,
+          label: (ctx: any) => `Probability Density: ${Number(ctx.parsed.y).toFixed(2)}%`,
         },
       },
     },
   };
 
-  // ── Build MPC charts ──────────────────────────────────────────────────────
-  let capitalChartEl: React.ReactNode = null;
-  let inExpChartEl: React.ReactNode = null;
+  // ─── 2. CAPITAL TRAJECTORY (MPC) Chart Config ──────────────────────────────
+  let capitalData: any = null;
+  let capitalOptions: any = null;
+  let capScaleLabel = "";
+  let capScaleDivider = 1;
+
+  if (mpcResult) {
+    const { T, xPast, xFuture, p10Cap, p90Cap, pastLabels, futureLabels } = mpcResult;
+    const allCapVals = [...xPast, ...xFuture, ...p10Cap, ...p90Cap];
+    const capMax = Math.max(...allCapVals.map(Math.abs));
+    const { S, label: sL } = getScale(capMax);
+    capScaleLabel = sL;
+    capScaleDivider = S;
+
+    const allLabels = [...pastLabels, ...futureLabels];
+    const nPast = pastLabels.length;
+
+    const histCapData: (number | null)[] = [
+      ...xPast.slice(1).map((v) => v / S),
+      ...Array(12).fill(null),
+    ];
+    const foreCapData: (number | null)[] = [
+      ...Array(nPast - 1).fill(null),
+      ...xFuture.map((v) => v / S),
+    ];
+    const p10CapData: (number | null)[] = [
+      ...Array(nPast - 1).fill(null),
+      ...p10Cap.map((v) => v / S),
+    ];
+    const p90CapData: (number | null)[] = [
+      ...Array(nPast - 1).fill(null),
+      ...p90Cap.map((v) => v / S),
+    ];
+    const xRefLine = allLabels.map(() => xRef / S);
+    const xMinLine = allLabels.map(() => xMin / S);
+
+    capitalData = {
+      labels: allLabels,
+      datasets: [
+        {
+          label: "P10 Floor",
+          data: p10CapData,
+          borderColor: "rgba(245, 158, 11, 0.4)",
+          backgroundColor: "transparent",
+          borderWidth: 1,
+          pointRadius: 0,
+          fill: false,
+          tension: 0.25,
+        },
+        {
+          label: "P10–P90 Band (80% Confidence)",
+          data: p90CapData,
+          borderColor: "rgba(245, 158, 11, 0.4)",
+          backgroundColor: "rgba(245, 158, 11, 0.14)",
+          borderWidth: 1,
+          pointRadius: 0,
+          fill: "-1",
+          tension: 0.25,
+        },
+        ...(xRef !== 0
+          ? [
+            {
+              label: `Target x_ref (${(xRef / S).toFixed(1)}${sL})`,
+              data: xRefLine,
+              borderColor: "rgba(16, 185, 129, 0.85)",
+              backgroundColor: "transparent",
+              borderWidth: 1.8,
+              borderDash: [7, 4],
+              pointRadius: 0,
+              fill: false,
+            },
+          ]
+          : []),
+        ...(xMin !== 0
+          ? [
+            {
+              label: `Min Reserve x_min (${(xMin / S).toFixed(1)}${sL})`,
+              data: xMinLine,
+              borderColor: "rgba(239, 68, 68, 0.85)",
+              backgroundColor: "transparent",
+              borderWidth: 1.8,
+              borderDash: [4, 4],
+              pointRadius: 0,
+              fill: false,
+            },
+          ]
+          : []),
+        {
+          label: "Historical Capital",
+          data: histCapData,
+          borderColor: "#2563eb",
+          backgroundColor: "#2563eb",
+          borderWidth: 2.5,
+          pointRadius: 3.5,
+          pointHoverRadius: 6,
+          fill: false,
+          tension: 0.2,
+        },
+        {
+          label: "MPC Forecast Capital (mean)",
+          data: foreCapData,
+          borderColor: "#d97706",
+          backgroundColor: "#d97706",
+          borderWidth: 2.5,
+          borderDash: [6, 3],
+          pointRadius: 3.5,
+          pointStyle: "rect",
+          pointHoverRadius: 6,
+          fill: false,
+          tension: 0.2,
+        },
+      ],
+    };
+
+    capitalOptions = {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 350 },
+      plugins: {
+        legend: {
+          position: "top" as const,
+          labels: { font: { size: 11, weight: "500" as const }, color: "#334155" },
+        },
+        tooltip: {
+          backgroundColor: "rgba(15, 23, 42, 0.9)",
+          padding: 10,
+          cornerRadius: 8,
+          callbacks: {
+            label: (ctx: any) =>
+              `${ctx.dataset.label}: ${Number(ctx.parsed.y).toFixed(2)} ${sL} SUM`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid: { color: "rgba(226, 232, 240, 0.6)" },
+          ticks: { maxRotation: 45, minRotation: 30, font: { size: 9 }, color: "#64748b" },
+        },
+        y: {
+          grid: { color: "rgba(226, 232, 240, 0.6)" },
+          title: {
+            display: true,
+            text: `Capital (${sL} SUM)`,
+            font: { size: 12, weight: "bold" as const },
+            color: "#475569",
+          },
+          ticks: {
+            font: { size: 10 },
+            color: "#64748b",
+            callback: (v: any) => `${Number(v).toFixed(1)}${sL}`,
+          },
+        },
+      },
+    };
+  }
+
+  // ─── 3. SPENDING PLAN & INCOME (MPC) Chart Config ─────────────────────────
+  let inExpData: any = null;
+  let inExpOptions: any = null;
+  let planScaleLabel = "";
+  let planScaleDivider = 1;
 
   if (mpcResult) {
     const {
-      T,
-      xPast,
-      xFuture,
-      p10Cap,
-      p90Cap,
       pastLabels,
       futureLabels,
       pastIncomes,
@@ -417,165 +723,14 @@ function Page() {
       p90Inc,
     } = mpcResult;
 
-    // Determine display scale from capital values
-    const allCapVals = [...xPast, ...xFuture, ...p10Cap, ...p90Cap];
-    const capMax = Math.max(...allCapVals.map(Math.abs));
-    const { S, label: sL } = getScale(capMax);
+    const allLabels = [...pastLabels, ...futureLabels];
+    const nPast = pastLabels.length;
 
-    const allLabels = [...pastLabels, ...futureLabels]; // T + 12 labels
-    const nPast = pastLabels.length; // = T
-
-    // ── Capital line chart ─────────────────────────────────────────────────
-    // Historical: xPast[1..T] at positions 0..T-1 (end-of-month capitals)
-    // Forecast:   xFuture[0..12] at positions T-1..T+11 (overlap at T-1 for continuity)
-    // Band:       p10Cap/p90Cap same positions as forecast
-
-    const histCapData: (number | null)[] = [
-      ...xPast.slice(1).map((v) => v / S),           // indices 0..T-1
-      ...Array(12).fill(null),
-    ];
-
-    // Forecast starts at index nPast-1 so lines connect
-    const foreCapData: (number | null)[] = [
-      ...Array(nPast - 1).fill(null),
-      ...xFuture.map((v) => v / S),                  // xFuture[0..12] → indices T-1..T+11
-    ];
-
-    const p10CapData: (number | null)[] = [
-      ...Array(nPast - 1).fill(null),
-      ...p10Cap.map((v) => v / S),
-    ];
-    const p90CapData: (number | null)[] = [
-      ...Array(nPast - 1).fill(null),
-      ...p90Cap.map((v) => v / S),
-    ];
-
-    const xRefLine = allLabels.map(() => xRef / S);
-    const xMinLine = allLabels.map(() => xMin / S);
-
-    const capitalData = {
-      labels: allLabels,
-      datasets: [
-        // ── Band (rendered first / underneath) ──────────────────────────
-        {
-          label: "P10 Capital",
-          data: p10CapData,
-          borderColor: "rgba(255,127,14,0.35)",
-          backgroundColor: "transparent",
-          borderWidth: 1,
-          pointRadius: 0,
-          fill: false,
-          tension: 0.25,
-        },
-        {
-          label: "P10–P90 Band",
-          data: p90CapData,
-          borderColor: "rgba(255,127,14,0.35)",
-          backgroundColor: "rgba(255,127,14,0.15)",
-          borderWidth: 1,
-          pointRadius: 0,
-          fill: "-1" as any,
-          tension: 0.25,
-        },
-        // ── Reference lines ─────────────────────────────────────────────
-        ...(xRef !== 0
-          ? [
-            {
-              label: `Target (${(xRef / S).toFixed(1)}${sL})`,
-              data: xRefLine,
-              borderColor: "rgba(44,160,44,0.75)",
-              backgroundColor: "transparent",
-              borderWidth: 1.5,
-              borderDash: [7, 4],
-              pointRadius: 0,
-              fill: false,
-            },
-          ]
-          : []),
-        ...(xMin !== 0
-          ? [
-            {
-              label: `Min Reserve (${(xMin / S).toFixed(1)}${sL})`,
-              data: xMinLine,
-              borderColor: "rgba(214,39,40,0.65)",
-              backgroundColor: "transparent",
-              borderWidth: 1.5,
-              borderDash: [3, 3],
-              pointRadius: 0,
-              fill: false,
-            },
-          ]
-          : []),
-        // ── Main lines ──────────────────────────────────────────────────
-        {
-          label: "Historical Capital",
-          data: histCapData,
-          borderColor: "#1f77b4",
-          backgroundColor: "#1f77b4",
-          borderWidth: 2.5,
-          pointRadius: 3,
-          fill: false,
-          tension: 0.2,
-        },
-        {
-          label: "MPC Forecast Capital (mean)",
-          data: foreCapData,
-          borderColor: "#ff7f0e",
-          backgroundColor: "#ff7f0e",
-          borderWidth: 2.5,
-          borderDash: [6, 3],
-          pointRadius: 3,
-          pointStyle: "rect" as any,
-          fill: false,
-          tension: 0.2,
-        },
-      ],
-    };
-
-    const capitalOptions = {
-      responsive: true,
-      maintainAspectRatio: false,
-      animation: { duration: 400 },
-      plugins: {
-        legend: { position: "top" as const, labels: { font: { size: 10 } } },
-        title: {
-          display: true,
-          text: "Capital Trajectory: History + MPC Forecast (P10–P90 Probabilistic Band)",
-          font: { size: 12, weight: "bold" as const },
-        },
-        tooltip: {
-          callbacks: {
-            label: (ctx: any) =>
-              `${ctx.dataset.label}: ${ctx.parsed.y?.toFixed(2)} ${sL} SUM`,
-          },
-        },
-      },
-      scales: {
-        x: {
-          ticks: { maxRotation: 60, minRotation: 45, font: { size: 8 } },
-        },
-        y: {
-          title: { display: true, text: `Capital (${sL} SUM)` },
-          ticks: { callback: (v: any) => `${Number(v).toFixed(1)}${sL}` },
-        },
-      },
-    };
-
-    capitalChartEl = (
-      <div style={{ height: "100%", width: "100%" }}>
-        <Line data={capitalData} options={capitalOptions as any} />
-      </div>
-    );
-
-    // ── Income / Expense mixed bar+line chart ──────────────────────────────
     const { S: bS, label: bL } = getScale(
-      Math.max(
-        ...pastIncomes,
-        ...pastExpenses,
-        ...futureIncMean,
-        ...uFuture
-      )
+      Math.max(...pastIncomes, ...pastExpenses, ...futureIncMean, ...uFuture)
     );
+    planScaleLabel = bL;
+    planScaleDivider = bS;
 
     const incHistData: (number | null)[] = [
       ...pastIncomes.map((v) => v / bS),
@@ -602,239 +757,900 @@ function Page() {
       ...p90Inc.map((v) => v / bS),
     ];
 
-    const inExpData = {
+    inExpData = {
       labels: allLabels,
       datasets: [
         {
           type: "bar" as const,
           label: "Historical Income",
           data: incHistData,
-          backgroundColor: "rgba(44,160,44,0.82)",
-          borderColor: "#2ca02c",
+          backgroundColor: "rgba(16, 185, 129, 0.82)",
+          borderColor: "#059669",
           borderWidth: 1,
+          borderRadius: 4,
         },
         {
           type: "bar" as const,
           label: "Historical Expense",
           data: expHistData,
-          backgroundColor: "rgba(214,39,40,0.82)",
-          borderColor: "#d62728",
+          backgroundColor: "rgba(239, 68, 68, 0.82)",
+          borderColor: "#dc2626",
           borderWidth: 1,
+          borderRadius: 4,
         },
         {
           type: "bar" as const,
           label: "Forecast Income (mean ×1.05)",
           data: incForeData,
-          backgroundColor: "rgba(152,223,138,0.9)",
-          borderColor: "#2ca02c",
+          backgroundColor: "rgba(110, 231, 183, 0.8)",
+          borderColor: "#10b981",
           borderWidth: 1,
+          borderRadius: 4,
         },
         {
           type: "bar" as const,
           label: "MPC Expense Plan u*",
           data: uPlanData,
-          backgroundColor: "rgba(255,152,150,0.9)",
-          borderColor: "#d62728",
+          backgroundColor: "rgba(252, 165, 165, 0.85)",
+          borderColor: "#ef4444",
           borderWidth: 1,
+          borderRadius: 4,
         },
         {
           type: "line" as const,
-          label: "Forecast Income P10",
+          label: "Income P10 (Downside)",
           data: incP10Data,
-          borderColor: "rgba(0,128,0,0.75)",
+          borderColor: "rgba(5, 150, 105, 0.9)",
           backgroundColor: "transparent",
           borderWidth: 1.5,
           borderDash: [4, 3],
           pointRadius: 4,
-          pointStyle: "triangle" as any,
+          pointStyle: "triangle",
           fill: false,
         },
         {
           type: "line" as const,
-          label: "Forecast Income P90",
+          label: "Income P90 (Upside)",
           data: incP90Data,
-          borderColor: "rgba(0,100,0,0.75)",
+          borderColor: "rgba(4, 120, 87, 0.9)",
           backgroundColor: "transparent",
           borderWidth: 1.5,
           borderDash: [4, 3],
           pointRadius: 4,
-          pointStyle: "triangle" as any,
+          pointStyle: "triangle",
           fill: false,
         },
       ],
     };
 
-    const inExpOptions = {
+    inExpOptions = {
       responsive: true,
       maintainAspectRatio: false,
-      animation: { duration: 400 },
+      animation: { duration: 350 },
       plugins: {
-        legend: { position: "top" as const, labels: { font: { size: 10 } } },
-        title: {
-          display: true,
-          text: "Income & Expense History + MPC Planned Spending (u*) with P10/P90 Forecast Range",
-          font: { size: 12, weight: "bold" as const },
+        legend: {
+          position: "top" as const,
+          labels: { font: { size: 11, weight: "500" as const }, color: "#334155" },
         },
         tooltip: {
+          backgroundColor: "rgba(15, 23, 42, 0.9)",
+          padding: 10,
+          cornerRadius: 8,
           callbacks: {
             label: (ctx: any) =>
-              `${ctx.dataset.label}: ${ctx.parsed.y?.toFixed(2)} ${bL} SUM`,
+              `${ctx.dataset.label}: ${Number(ctx.parsed.y).toFixed(2)} ${bL} SUM`,
           },
         },
       },
       scales: {
         x: {
-          ticks: { maxRotation: 60, minRotation: 45, font: { size: 8 } },
+          grid: { color: "rgba(226, 232, 240, 0.6)" },
+          ticks: { maxRotation: 45, minRotation: 30, font: { size: 9 }, color: "#64748b" },
         },
         y: {
-          title: { display: true, text: `Amount (${bL} SUM / month)` },
-          ticks: { callback: (v: any) => `${Number(v).toFixed(1)}${bL}` },
+          grid: { color: "rgba(226, 232, 240, 0.6)" },
+          title: {
+            display: true,
+            text: `Amount (${bL} SUM / month)`,
+            font: { size: 12, weight: "bold" as const },
+            color: "#475569",
+          },
+          ticks: {
+            font: { size: 10 },
+            color: "#64748b",
+            callback: (v: any) => `${Number(v).toFixed(1)}${bL}`,
+          },
         },
       },
     };
-
-    inExpChartEl = (
-      <div style={{ height: "100%", width: "100%" }}>
-        <Chart type="bar" data={inExpData as any} options={inExpOptions as any} />
-      </div>
-    );
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // ─── 4. INCOME & EXPENSE TRENDS (4th Graph) Chart Config ──────────────────
+  let trendsChartData: any = null;
+  let trendsChartOptions: any = null;
+
+  if (trendsData) {
+    const {
+      labels,
+      incomes,
+      expenses,
+      netFlows,
+      cumulative,
+      maIncomes,
+      maExpenses,
+      S,
+      sL,
+    } = trendsData;
+
+    if (trendViewMode === "cumulative") {
+      trendsChartData = {
+        labels,
+        datasets: [
+          {
+            type: "line" as const,
+            label: `Cumulative Wealth / Saved (${sL} SUM)`,
+            data: cumulative.map((v) => v / S),
+            borderColor: "#4f46e5",
+            backgroundColor: "rgba(79, 70, 229, 0.12)",
+            borderWidth: 3,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            pointBackgroundColor: "#4f46e5",
+            fill: true,
+            tension: 0.25,
+          },
+        ],
+      };
+    } else {
+      const netColors = netFlows.map((n) =>
+        n >= 0 ? "rgba(37, 99, 235, 0.75)" : "rgba(239, 68, 68, 0.75)"
+      );
+      const netBorderColors = netFlows.map((n) => (n >= 0 ? "#1d4ed8" : "#b91c1c"));
+
+      trendsChartData = {
+        labels,
+        datasets: [
+          ...(trendViewMode === "combined"
+            ? [
+              {
+                type: "bar" as const,
+                label: "Net Cashflow (Income - Expenses)",
+                data: netFlows.map((v) => v / S),
+                backgroundColor: netColors,
+                borderColor: netBorderColors,
+                borderWidth: 1.5,
+                borderRadius: 4,
+                order: 3,
+              },
+            ]
+            : []),
+          {
+            type: "line" as const,
+            label: `Monthly Income (${sL} SUM)`,
+            data: incomes.map((v) => v / S),
+            borderColor: "#10b981",
+            backgroundColor: "rgba(16, 185, 129, 0.08)",
+            borderWidth: 2.8,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            pointBackgroundColor: "#10b981",
+            fill: true,
+            tension: 0.3,
+            order: 1,
+          },
+          {
+            type: "line" as const,
+            label: `Monthly Expenses (${sL} SUM)`,
+            data: expenses.map((v) => v / S),
+            borderColor: "#ef4444",
+            backgroundColor: "rgba(239, 68, 68, 0.06)",
+            borderWidth: 2.8,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            pointBackgroundColor: "#ef4444",
+            fill: true,
+            tension: 0.3,
+            order: 2,
+          },
+          ...(showMovingAverage && rows.length >= 3
+            ? [
+              {
+                type: "line" as const,
+                label: "Income (3M Moving Avg)",
+                data: maIncomes.map((v) => (v !== null ? v / S : null)),
+                borderColor: "rgba(5, 150, 105, 0.7)",
+                backgroundColor: "transparent",
+                borderWidth: 1.8,
+                borderDash: [5, 4],
+                pointRadius: 0,
+                fill: false,
+                tension: 0.3,
+                order: 0,
+              },
+              {
+                type: "line" as const,
+                label: "Expense (3M Moving Avg)",
+                data: maExpenses.map((v) => (v !== null ? v / S : null)),
+                borderColor: "rgba(220, 38, 38, 0.7)",
+                backgroundColor: "transparent",
+                borderWidth: 1.8,
+                borderDash: [5, 4],
+                pointRadius: 0,
+                fill: false,
+                tension: 0.3,
+                order: 0,
+              },
+            ]
+            : []),
+        ],
+      };
+    }
+
+    trendsChartOptions = {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 350 },
+      plugins: {
+        legend: {
+          position: "top" as const,
+          labels: { font: { size: 11, weight: "500" as const }, color: "#334155" },
+        },
+        tooltip: {
+          backgroundColor: "rgba(15, 23, 42, 0.9)",
+          padding: 10,
+          cornerRadius: 8,
+          callbacks: {
+            label: (ctx: any) =>
+              `${ctx.dataset.label}: ${Number(ctx.parsed.y).toFixed(2)} ${sL} SUM`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid: { color: "rgba(226, 232, 240, 0.6)" },
+          ticks: { maxRotation: 45, minRotation: 30, font: { size: 9 }, color: "#64748b" },
+        },
+        y: {
+          grid: { color: "rgba(226, 232, 240, 0.6)" },
+          title: {
+            display: true,
+            text: `Amount (${sL} SUM)`,
+            font: { size: 12, weight: "bold" as const },
+            color: "#475569",
+          },
+          ticks: {
+            font: { size: 10 },
+            color: "#64748b",
+            callback: (v: any) => `${Number(v).toFixed(1)}${sL}`,
+          },
+        },
+      },
+    };
+  }
+
+  // ── Tab items definition ──────────────────────────────────────────────────
+  const tabItems = [
+    {
+      id: "montecarlo" as TabType,
+      label: "Wealth Distribution",
+      badge: "Monte Carlo",
+      icon: <BarChart3 className="w-4 h-4" />,
+    },
+    {
+      id: "mpc-capital" as TabType,
+      label: "Capital Trajectory",
+      badge: "MPC",
+      icon: <TrendingUp className="w-4 h-4" />,
+    },
+    {
+      id: "mpc-spending" as TabType,
+      label: "Spending Plan",
+      badge: "MPC",
+      icon: <Target className="w-4 h-4" />,
+    },
+    {
+      id: "trends" as TabType,
+      label: "Trends Over Time",
+      badge: "History",
+      icon: <LineChart className="w-4 h-4" />,
+    },
+  ];
+
   return (
-    <div className="flex flex-col h-[calc(92vh)] p-6 gap-3">
-      {/* ── Controls row ─────────────────────────────────────────────────── */}
-      <div className="flex flex-row justify-between items-start gap-4 flex-wrap">
-        <div className="flex flex-row items-end gap-3 flex-wrap">
-          {/* Always-visible: starting wealth */}
-          <div className="flex flex-col">
-            <label htmlFor="startingWealth" className="text-xs font-medium text-gray-600 mb-1">
-              Initial Capital x₀ ({scaleLabel})
-            </label>
-            <input
-              id="startingWealth"
-              type="number"
-              value={SCALE > 1 ? startingWealth / SCALE : startingWealth}
-              onChange={(e) => setStartingWealth(Number(e.target.value) * SCALE)}
-              className="border border-gray-300 p-2 rounded-xl text-sm w-36"
-            />
-          </div>
-
-          {/* Histogram-only param */}
-          {!showProgression && (
-            <div className="flex flex-col">
-              <label htmlFor="inflationRate" className="text-xs font-medium text-gray-600 mb-1">
-                Inflation (monthly %)
-              </label>
-              <input
-                id="inflationRate"
-                type="number"
-                value={inflationRate}
-                onChange={(e) => setInflationRate(Number(e.target.value))}
-                className="border border-gray-300 p-2 rounded-xl text-sm w-32"
-              />
-            </div>
-          )}
-
-          {/* MPC-only params */}
-          {showProgression && (
-            <>
-              <div className="flex flex-col">
-                <label htmlFor="xRef" className="text-xs font-medium text-gray-600 mb-1">
-                  Target Capital x_ref ({scaleLabel})
-                </label>
-                <input
-                  id="xRef"
-                  type="number"
-                  value={SCALE > 1 ? xRef / SCALE : xRef}
-                  onChange={(e) => setXRef(Number(e.target.value) * SCALE)}
-                  className="border border-gray-300 p-2 rounded-xl text-sm w-36"
-                />
-              </div>
-              <div className="flex flex-col">
-                <label htmlFor="xMin" className="text-xs font-medium text-gray-600 mb-1">
-                  Min Reserve x_min ({scaleLabel})
-                </label>
-                <input
-                  id="xMin"
-                  type="number"
-                  value={SCALE > 1 ? xMin / SCALE : xMin}
-                  onChange={(e) => setXMin(Number(e.target.value) * SCALE)}
-                  className="border border-gray-300 p-2 rounded-xl text-sm w-36"
-                />
-              </div>
-              <div className="flex flex-col">
-                <label htmlFor="uMin" className="text-xs font-medium text-gray-600 mb-1">
-                  Min Expense u_min ({scaleLabel})
-                </label>
-                <input
-                  id="uMin"
-                  type="number"
-                  value={SCALE > 1 ? uMin / SCALE : uMin}
-                  onChange={(e) => setUMin(Number(e.target.value) * SCALE)}
-                  className="border border-gray-300 p-2 rounded-xl text-sm w-36"
-                />
-              </div>
-              <div className="flex flex-col">
-                <label htmlFor="uMax" className="text-xs font-medium text-gray-600 mb-1">
-                  Max Expense u_max ({scaleLabel}, 0=∞)
-                </label>
-                <input
-                  id="uMax"
-                  type="number"
-                  value={SCALE > 1 ? uMax / SCALE : uMax}
-                  onChange={(e) => setUMax(Number(e.target.value) * SCALE)}
-                  className="border border-gray-300 p-2 rounded-xl text-sm w-36"
-                />
-              </div>
-            </>
-          )}
-
-          {/* Stats strip */}
-          <div className="text-xs text-gray-500 flex flex-col justify-end pb-2 ml-2">
-            <div>Mean: {simulation.mean.toFixed(2)}</div>
-            <div>Median: {simulation.median.toFixed(2)}</div>
-            <div>
-              P10–P90: {simulation.p10.toFixed(2)} – {simulation.p90.toFixed(2)}
-            </div>
-          </div>
+    <div className="flex flex-col min-h-0 h-full p-2 md:p-3 gap-3">
+      {/* ── Top Header & Tab Navigation ──────────────────────────────────── */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200/90 shadow-xs">
+        <div>
+          <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+            <span>Financial Simulation &amp; Optimization</span>
+          </h2>
+          <p className="text-xs text-slate-500">
+            Select a screen to view probability distributions, optimal control trajectories, or historical trends.
+          </p>
         </div>
 
-        {/* Toggle */}
-        <div className="flex flex-col items-end gap-1">
-          <span className="text-xs font-medium text-gray-600">
-            Wealth progression &amp; MPC control
-          </span>
-          <Button onClick={() => setShowProgression(!showProgression)}>
-            {showProgression ? "Hide MPC" : "Show MPC"}
-          </Button>
+        {/* Tab switcher buttons */}
+        <div className="flex items-center gap-1.5 bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/80 overflow-x-auto">
+          {tabItems.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-medium cursor-pointer transition-all duration-150 whitespace-nowrap ${
+                  isActive
+                    ? "bg-white text-slate-900 shadow-sm border border-slate-200 font-semibold"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                }`}
+              >
+                <span className={isActive ? "text-blue-600" : "text-slate-400"}>
+                  {tab.icon}
+                </span>
+                <span>{tab.label}</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.5 rounded-md ${
+                    isActive
+                      ? "bg-blue-50 text-blue-700 font-semibold"
+                      : "bg-slate-200/70 text-slate-500"
+                  }`}
+                >
+                  {tab.badge}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* ── Chart area ───────────────────────────────────────────────────── */}
-      {showProgression ? (
-        <div className="flex-1 overflow-y-auto flex flex-col gap-4 min-h-0">
-          {mpcResult ? (
-            <>
-              <div style={{ height: "380px", minHeight: "280px" }}>{capitalChartEl}</div>
-              <div style={{ height: "380px", minHeight: "280px" }}>{inExpChartEl}</div>
-            </>
-          ) : (
-            <div className="flex items-center justify-center h-full text-gray-400 text-sm">
-              Not enough data to run MPC. Please add at least 1 month of income / expense data.
+      {/* ── Contextual Controls Bar ───────────────────────────────────────── */}
+      <div className="bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-xs">
+        <div className="flex flex-row items-center justify-between gap-4 flex-wrap">
+          {/* Controls tailored to active tab */}
+          <div className="flex flex-row items-end gap-3 flex-wrap">
+            {/* Initial Capital (used by MC, MPC Capital, MPC Spending, Cumulative Trend) */}
+            <div className="flex flex-col">
+              <label
+                htmlFor="startingWealth"
+                className="text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1"
+              >
+                <span>Initial Capital x₀</span>
+                <span className="text-slate-400 font-normal">({scaleLabel})</span>
+              </label>
+              <input
+                id="startingWealth"
+                type="number"
+                value={SCALE > 1 ? startingWealth / SCALE : startingWealth}
+                onChange={(e) => setStartingWealth(Number(e.target.value) * SCALE)}
+                className="border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 p-2 rounded-xl text-sm w-36 bg-slate-50/50"
+              />
             </div>
+
+            {/* Tab 1: Monte Carlo specific controls */}
+            {activeTab === "montecarlo" && (
+              <div className="flex flex-col">
+                <label
+                  htmlFor="inflationRate"
+                  className="text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1"
+                >
+                  <span>Monthly Inflation</span>
+                  <span className="text-slate-400 font-normal">(%)</span>
+                </label>
+                <input
+                  id="inflationRate"
+                  type="number"
+                  step="0.05"
+                  value={inflationRate}
+                  onChange={(e) => setInflationRate(Number(e.target.value))}
+                  className="border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 p-2 rounded-xl text-sm w-32 bg-slate-50/50"
+                />
+              </div>
+            )}
+
+            {/* Tab 2: MPC Capital Trajectory controls */}
+            {activeTab === "mpc-capital" && (
+              <>
+                <div className="flex flex-col">
+                  <label
+                    htmlFor="xRef"
+                    className="text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1"
+                  >
+                    <span>Target Capital x_ref</span>
+                    <span className="text-slate-400 font-normal">({scaleLabel})</span>
+                  </label>
+                  <input
+                    id="xRef"
+                    type="number"
+                    value={SCALE > 1 ? xRef / SCALE : xRef}
+                    onChange={(e) => setXRef(Number(e.target.value) * SCALE)}
+                    className="border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 p-2 rounded-xl text-sm w-36 bg-slate-50/50"
+                  />
+                </div>
+                <div className="flex flex-col">
+                  <label
+                    htmlFor="xMin"
+                    className="text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1"
+                  >
+                    <span>Min Reserve x_min</span>
+                    <span className="text-slate-400 font-normal">({scaleLabel})</span>
+                  </label>
+                  <input
+                    id="xMin"
+                    type="number"
+                    value={SCALE > 1 ? xMin / SCALE : xMin}
+                    onChange={(e) => setXMin(Number(e.target.value) * SCALE)}
+                    className="border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 p-2 rounded-xl text-sm w-36 bg-slate-50/50"
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Tab 3: MPC Spending Plan controls */}
+            {activeTab === "mpc-spending" && (
+              <>
+                <div className="flex flex-col">
+                  <label
+                    htmlFor="uMin"
+                    className="text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1"
+                  >
+                    <span>Min Expense u_min</span>
+                    <span className="text-slate-400 font-normal">({scaleLabel})</span>
+                  </label>
+                  <input
+                    id="uMin"
+                    type="number"
+                    value={SCALE > 1 ? uMin / SCALE : uMin}
+                    onChange={(e) => setUMin(Number(e.target.value) * SCALE)}
+                    className="border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 p-2 rounded-xl text-sm w-36 bg-slate-50/50"
+                  />
+                </div>
+                <div className="flex flex-col">
+                  <label
+                    htmlFor="uMax"
+                    className="text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1"
+                  >
+                    <span>Max Expense u_max</span>
+                    <span className="text-slate-400 font-normal">(0 = ∞)</span>
+                  </label>
+                  <input
+                    id="uMax"
+                    type="number"
+                    value={SCALE > 1 ? uMax / SCALE : uMax}
+                    onChange={(e) => setUMax(Number(e.target.value) * SCALE)}
+                    className="border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 p-2 rounded-xl text-sm w-36 bg-slate-50/50"
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Tab 4: Historical Trends view toggles */}
+            {activeTab === "trends" && (
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex flex-col">
+                  <span className="text-xs font-semibold text-slate-700 mb-1">
+                    Display View
+                  </span>
+                  <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                    <button
+                      onClick={() => setTrendViewMode("combined")}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all ${
+                        trendViewMode === "combined"
+                          ? "bg-white text-blue-700 shadow-xs font-semibold"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      Curves + Net Bars
+                    </button>
+                    <button
+                      onClick={() => setTrendViewMode("curves")}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all ${
+                        trendViewMode === "curves"
+                          ? "bg-white text-blue-700 shadow-xs font-semibold"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      Income vs Expense
+                    </button>
+                    <button
+                      onClick={() => setTrendViewMode("cumulative")}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all ${
+                        trendViewMode === "cumulative"
+                          ? "bg-white text-indigo-700 shadow-xs font-semibold"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      Cumulative Net Wealth
+                    </button>
+                  </div>
+                </div>
+
+                {trendViewMode !== "cumulative" && (
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-700 mt-5 select-none">
+                    <input
+                      type="checkbox"
+                      checked={showMovingAverage}
+                      onChange={(e) => setShowMovingAverage(e.target.checked)}
+                      className="rounded text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>Show 3-Month Moving Average</span>
+                  </label>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Quick Summary Badge for current screen */}
+          <div className="text-xs text-slate-500 flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200/80">
+            <Info className="w-4 h-4 text-blue-600 shrink-0" />
+            {activeTab === "montecarlo" && (
+              <span>100,000 iterations over 12 months with normal income/expense perturbations.</span>
+            )}
+            {activeTab === "mpc-capital" && (
+              <span>Closed-form Receding Horizon Control trajectory balancing goal attainment &amp; safety.</span>
+            )}
+            {activeTab === "mpc-spending" && (
+              <span>Calculated optimal monthly spending u* against P10/P90 log-normal income bounds.</span>
+            )}
+            {activeTab === "trends" && (
+              <span>Detailed evolution of income, expenditure, and net savings across historical periods.</span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Key Performance Indicators (KPI) Strip ───────────────────────── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
+        {activeTab === "montecarlo" && (
+          <>
+            <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                Mean Wealth (12M)
+              </span>
+              <p className="text-lg font-bold text-slate-800 mt-0.5">
+                {formatNum(simulation.mean)} <span className="text-xs font-medium text-slate-500">{scaleLabel}</span>
+              </p>
+              <span className="text-[11px] text-blue-600 font-medium">Expected Central Value</span>
+            </div>
+            <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                Median (P50)
+              </span>
+              <p className="text-lg font-bold text-slate-800 mt-0.5">
+                {formatNum(simulation.median)} <span className="text-xs font-medium text-slate-500">{scaleLabel}</span>
+              </p>
+              <span className="text-[11px] text-slate-500 font-medium">50% Probability Point</span>
+            </div>
+            <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                Downside Risk (P10)
+              </span>
+              <p className="text-lg font-bold text-amber-600 mt-0.5">
+                {formatNum(simulation.p10)} <span className="text-xs font-medium text-slate-500">{scaleLabel}</span>
+              </p>
+              <span className="text-[11px] text-amber-600 font-medium">90% Runs Exceed This</span>
+            </div>
+            <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                Upside Potential (P90)
+              </span>
+              <p className="text-lg font-bold text-emerald-600 mt-0.5">
+                {formatNum(simulation.p90)} <span className="text-xs font-medium text-slate-500">{scaleLabel}</span>
+              </p>
+              <span className="text-[11px] text-emerald-600 font-medium">Top 10% Outcome</span>
+            </div>
+            <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                P10–P90 Spread
+              </span>
+              <p className="text-lg font-bold text-slate-700 mt-0.5">
+                {formatNum(simulation.p90 - simulation.p10)}{" "}
+                <span className="text-xs font-medium text-slate-500">{scaleLabel}</span>
+              </p>
+              <span className="text-[11px] text-slate-500 font-medium">Distribution Width</span>
+            </div>
+          </>
+        )}
+
+        {activeTab === "mpc-capital" && mpcResult && (
+          <>
+            <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                Current Capital
+              </span>
+              <p className="text-lg font-bold text-blue-600 mt-0.5">
+                {formatNum(mpcResult.xCurrent / capScaleDivider)}{" "}
+                <span className="text-xs font-medium text-slate-500">{capScaleLabel}</span>
+              </p>
+              <span className="text-[11px] text-slate-500 font-medium">Historical Baseline</span>
+            </div>
+            <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                12M Forecast Capital
+              </span>
+              <p className="text-lg font-bold text-amber-600 mt-0.5">
+                {formatNum(mpcResult.xFuture[12] / capScaleDivider)}{" "}
+                <span className="text-xs font-medium text-slate-500">{capScaleLabel}</span>
+              </p>
+              <span className="text-[11px] text-slate-500 font-medium">With MPC Plan</span>
+            </div>
+            <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                Target Capital x_ref
+              </span>
+              <p className="text-lg font-bold text-emerald-600 mt-0.5">
+                {xRef > 0 ? formatNum(xRef / capScaleDivider) : "—"}{" "}
+                <span className="text-xs font-medium text-slate-500">{xRef > 0 ? capScaleLabel : ""}</span>
+              </p>
+              <span className="text-[11px] text-emerald-600 font-medium">Optimization Reference</span>
+            </div>
+            <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                P10 Conservative (12M)
+              </span>
+              <p className="text-lg font-bold text-slate-700 mt-0.5">
+                {formatNum(mpcResult.p10Cap[12] / capScaleDivider)}{" "}
+                <span className="text-xs font-medium text-slate-500">{capScaleLabel}</span>
+              </p>
+              <span className="text-[11px] text-slate-500 font-medium">Downside 10th Percentile</span>
+            </div>
+            <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                Reserve Safety Buffer
+              </span>
+              <p className="text-lg font-bold text-slate-700 mt-0.5">
+                {xMin > 0
+                  ? formatNum((mpcResult.xCurrent - xMin) / capScaleDivider)
+                  : "Unconstrained"}{" "}
+                <span className="text-xs font-medium text-slate-500">{xMin > 0 ? capScaleLabel : ""}</span>
+              </p>
+              <span className="text-[11px] text-slate-500 font-medium">Margin Above x_min</span>
+            </div>
+          </>
+        )}
+
+        {activeTab === "mpc-spending" && mpcResult && (
+          <>
+            <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                Avg Planned Spend u*
+              </span>
+              <p className="text-lg font-bold text-red-600 mt-0.5">
+                {formatNum(arrAvg(mpcResult.uFuture) / planScaleDivider)}{" "}
+                <span className="text-xs font-medium text-slate-500">{planScaleLabel} / mo</span>
+              </p>
+              <span className="text-[11px] text-slate-500 font-medium">MPC Optimal Budget</span>
+            </div>
+            <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                Historical Avg Expenses
+              </span>
+              <p className="text-lg font-bold text-slate-700 mt-0.5">
+                {formatNum(arrAvg(mpcResult.pastExpenses) / planScaleDivider)}{" "}
+                <span className="text-xs font-medium text-slate-500">{planScaleLabel} / mo</span>
+              </p>
+              <span className="text-[11px] text-slate-500 font-medium">Past Actual Spend</span>
+            </div>
+            <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                Planned Spend Change
+              </span>
+              {(() => {
+                const past = arrAvg(mpcResult.pastExpenses);
+                const planned = arrAvg(mpcResult.uFuture);
+                const diffPct = past > 0 ? ((planned - past) / past) * 100 : 0;
+                return (
+                  <>
+                    <p
+                      className={`text-lg font-bold mt-0.5 ${
+                        diffPct <= 0 ? "text-emerald-600" : "text-amber-600"
+                      }`}
+                    >
+                      {diffPct >= 0 ? `+${diffPct.toFixed(1)}%` : `${diffPct.toFixed(1)}%`}
+                    </p>
+                    <span className="text-[11px] text-slate-500 font-medium">
+                      {diffPct <= 0 ? "Spending Reduced" : "Spending Expanded"}
+                    </span>
+                  </>
+                );
+              })()}
+            </div>
+            <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                Projected Avg Income
+              </span>
+              <p className="text-lg font-bold text-emerald-600 mt-0.5">
+                {formatNum(arrAvg(mpcResult.futureIncMean) / planScaleDivider)}{" "}
+                <span className="text-xs font-medium text-slate-500">{planScaleLabel} / mo</span>
+              </p>
+              <span className="text-[11px] text-emerald-600 font-medium">With +5% Growth</span>
+            </div>
+            <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                Forecast Net Savings
+              </span>
+              {(() => {
+                const net =
+                  arrAvg(mpcResult.futureIncMean) - arrAvg(mpcResult.uFuture);
+                return (
+                  <>
+                    <p
+                      className={`text-lg font-bold mt-0.5 ${
+                        net >= 0 ? "text-blue-600" : "text-red-600"
+                      }`}
+                    >
+                      {formatNum(net / planScaleDivider)}{" "}
+                      <span className="text-xs font-medium text-slate-500">{planScaleLabel}</span>
+                    </p>
+                    <span className="text-[11px] text-slate-500 font-medium">
+                      {net >= 0 ? "Monthly Surplus" : "Monthly Deficit"}
+                    </span>
+                  </>
+                );
+              })()}
+            </div>
+          </>
+        )}
+
+        {activeTab === "trends" && trendsData && (
+          <>
+            <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                Total Lifetime Income
+              </span>
+              <p className="text-lg font-bold text-emerald-600 mt-0.5">
+                {formatNum(trendsData.totalIncome / trendsData.S)}{" "}
+                <span className="text-xs font-medium text-slate-500">{trendsData.sL} SUM</span>
+              </p>
+              <span className="text-[11px] text-slate-500 font-medium">
+                Avg: {formatNum(trendsData.avgMonthlyIncome / trendsData.S)} {trendsData.sL}/mo
+              </span>
+            </div>
+            <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                Total Lifetime Expenses
+              </span>
+              <p className="text-lg font-bold text-red-600 mt-0.5">
+                {formatNum(trendsData.totalExpenses / trendsData.S)}{" "}
+                <span className="text-xs font-medium text-slate-500">{trendsData.sL} SUM</span>
+              </p>
+              <span className="text-[11px] text-slate-500 font-medium">
+                Avg: {formatNum(trendsData.avgMonthlyExpenses / trendsData.S)} {trendsData.sL}/mo
+              </span>
+            </div>
+            <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                Net Cumulative Savings
+              </span>
+              <p
+                className={`text-lg font-bold mt-0.5 ${
+                  trendsData.totalNet >= 0 ? "text-blue-600" : "text-red-600"
+                }`}
+              >
+                {formatNum(trendsData.totalNet / trendsData.S)}{" "}
+                <span className="text-xs font-medium text-slate-500">{trendsData.sL} SUM</span>
+              </p>
+              <span className="text-[11px] text-slate-500 font-medium">
+                Net Accumulated Cash
+              </span>
+            </div>
+            <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                Savings Margin
+              </span>
+              <p
+                className={`text-lg font-bold mt-0.5 ${
+                  trendsData.savingsRate >= 0 ? "text-emerald-600" : "text-red-600"
+                }`}
+              >
+                {trendsData.savingsRate.toFixed(1)}%
+              </p>
+              <span className="text-[11px] text-slate-500 font-medium">
+                Retained of Gross Income
+              </span>
+            </div>
+            <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                Cashflow Health
+              </span>
+              <p className="text-lg font-bold text-slate-800 mt-0.5">
+                {trendsData.surplusMonthsCount} / {rows.length}{" "}
+                <span className="text-xs font-medium text-slate-500">months</span>
+              </p>
+              <span className="text-[11px] text-emerald-600 font-medium">
+                Positive Cashflow Months
+              </span>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* ── Active Chart Screen ───────────────────────────────────────────── */}
+      <div className="flex-1 min-h-[460px] bg-white rounded-2xl border border-slate-200/90 shadow-xs p-4 flex flex-col">
+        {/* Header of the active screen */}
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-blue-50 text-blue-700 rounded-lg">
+              {activeTab === "montecarlo" && <BarChart3 className="w-5 h-5" />}
+              {activeTab === "mpc-capital" && <TrendingUp className="w-5 h-5" />}
+              {activeTab === "mpc-spending" && <Target className="w-5 h-5" />}
+              {activeTab === "trends" && <LineChart className="w-5 h-5" />}
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-800">
+                {activeTab === "montecarlo" && "Final Wealth Probability Distribution (12-Month Monte Carlo)"}
+                {activeTab === "mpc-capital" && "Capital Trajectory: Historical Evolution + MPC Forecast with P10–P90 Band"}
+                {activeTab === "mpc-spending" && "Income & Expenditure Profile + MPC Optimized Spending Plan (u*)"}
+                {activeTab === "trends" && "Historical Financial Trends: Income, Expenditure & Net Cashflow"}
+              </h3>
+              <p className="text-xs text-slate-400">
+                {activeTab === "montecarlo" && "Visualizes the dispersion of final outcomes and tail risks across 100k random stochastic trials."}
+                {activeTab === "mpc-capital" && "Tracks capital progression with reference tracking (x_ref) and reserve boundary constraints (x_min)."}
+                {activeTab === "mpc-spending" && "Balances consumption smoothing with probabilistic revenue expectations."}
+                {activeTab === "trends" && "Analyzes monthly income velocity, cost trends, and overall cashflow surplus."}
+              </p>
+            </div>
+          </div>
+          <div className="text-xs text-slate-400 font-medium hidden sm:block">
+            {rows.length} Historical Records
+          </div>
+        </div>
+
+        {/* Graph Canvas Container */}
+        <div className="flex-1 w-full min-h-[380px] relative">
+          {activeTab === "montecarlo" && (
+            <Bar key="montecarlo-chart" data={histChartData} options={histOptions as any} />
+          )}
+
+          {activeTab === "mpc-capital" && (
+            mpcResult && capitalData ? (
+              <Line key="capital-chart" data={capitalData} options={capitalOptions as any} />
+            ) : (
+              <div className="flex items-center justify-center h-full text-slate-400 text-sm">
+                MPC could not be evaluated. Please verify historical data rows.
+              </div>
+            )
+          )}
+
+          {activeTab === "mpc-spending" && (
+            mpcResult && inExpData ? (
+              <Chart key="spending-chart" type="bar" data={inExpData} options={inExpOptions as any} />
+            ) : (
+              <div className="flex items-center justify-center h-full text-slate-400 text-sm">
+                MPC spending plan requires at least one month of historical data.
+              </div>
+            )
+          )}
+
+          {activeTab === "trends" && (
+            trendsChartData ? (
+              <Chart key="trends-chart" type="bar" data={trendsChartData} options={trendsChartOptions as any} />
+            ) : (
+              <div className="flex items-center justify-center h-full text-slate-400 text-sm">
+                Insufficient trend data.
+              </div>
+            )
           )}
         </div>
-      ) : (
-        <div className="flex-1 min-h-0">
-          <Bar data={histChartData} options={histOptions} />
-        </div>
-      )}
+      </div>
 
-      {/* ── Navigation ───────────────────────────────────────────────────── */}
-      <div className="flex flex-row justify-center gap-4">
-        <Button onClick={() => (window.location.href = "/home")}>Back to Home</Button>
-        <Button onClick={() => (window.location.href = "/montecarlo/page")}>Back to Data</Button>
+      {/* ── Bottom Navigation Bar ─────────────────────────────────────────── */}
+      <div className="flex flex-row justify-between items-center py-1">
+        <div className="text-xs text-slate-400 font-medium">
+          MonloSim Analytical Engine &bull; {rows.length} Active Data Points
+        </div>
+        <div className="flex flex-row gap-3">
+          <Button onClick={() => (window.location.href = "/montecarlo/page")}>
+            <div className="flex items-center gap-1.5 text-xs font-semibold">
+              <ArrowLeft className="w-4 h-4" />
+              Back to Data
+            </div>
+          </Button>
+          <Button onClick={() => (window.location.href = "/home")}>
+            <div className="flex items-center gap-1.5 text-xs font-semibold">
+              <Home className="w-4 h-4" />
+              Back to Home
+            </div>
+          </Button>
+        </div>
       </div>
     </div>
   );
