@@ -307,6 +307,7 @@ function Page() {
   const [activeTab, setActiveTab] = useState<TabType>("montecarlo");
   const [trendViewMode, setTrendViewMode] = useState<"combined" | "curves" | "cumulative">("combined");
   const [showLinearTrends, setShowLinearTrends] = useState(true);
+  const [useCurrentCapitalForMC, setUseCurrentCapitalForMC] = useState(true);
 
   // MPC params
   const [loaded, setLoaded] = useState(false);
@@ -343,13 +344,31 @@ function Page() {
     });
   }, [loaded, startingWealth, xRef, xMin, uMin, uMax]);
 
+  // ── Current Accumulated Capital (end of historical records) ───────────────
+  const currentCapital = useMemo(() => {
+    if (!rows || rows.length === 0) return startingWealth;
+    const netHistorical = rows.reduce(
+      (sum, r) => sum + (Number(r.income) - Number(r.expenses)),
+      0
+    );
+    return startingWealth + netHistorical;
+  }, [rows, startingWealth]);
+
   // ── Monte Carlo Histogram Computation ──────────────────────────────────────
-  const { simulation, SCALE } = useMemo(() => {
-    if (!rows || rows.length === 0) return { simulation: null, SCALE: 1 };
+  const { simulation, SCALE, baseCapitalUsed } = useMemo(() => {
+    if (!rows || rows.length === 0) return { simulation: null, SCALE: 1, baseCapitalUsed: 0 };
+
+    const baseCapital = useCurrentCapitalForMC ? currentCapital : startingWealth;
 
     const maxIncome = Math.max(...rows.map((r) => Number(r.income)));
     const maxExpense = Math.max(...rows.map((r) => Number(r.expenses)));
-    const maxValue = Math.max(maxIncome, maxExpense);
+    const maxValue = Math.max(
+      maxIncome,
+      maxExpense,
+      Math.abs(startingWealth),
+      Math.abs(currentCapital),
+      Math.abs(baseCapital)
+    );
     let SCALE = 1;
     if (maxValue > 1_000_000_000) SCALE = 1_000_000_000;
     else if (maxValue > 1_000_000) SCALE = 1_000_000;
@@ -365,7 +384,7 @@ function Page() {
 
     const results: number[] = [];
     for (let i = 0; i < 100000; i++) {
-      let wealth = startingWealth / SCALE;
+      let wealth = baseCapital / SCALE;
       for (let m = 0; m < 12; m++) {
         const income = Math.max(randNormal(avg(incomes), std(incomes)), 0);
         const expense = Math.max(
@@ -380,6 +399,7 @@ function Page() {
 
     return {
       SCALE,
+      baseCapitalUsed: baseCapital,
       simulation: {
         results,
         mean: avg(results),
@@ -388,7 +408,7 @@ function Page() {
         p90: results[Math.floor(results.length * 0.9)],
       },
     };
-  }, [rows, startingWealth, inflationRate]);
+  }, [rows, startingWealth, currentCapital, useCurrentCapitalForMC, inflationRate]);
 
   // ── MPC Computation ────────────────────────────────────────────────────────
   const mpcResult = useMemo(() => {
@@ -520,7 +540,7 @@ function Page() {
     labels: counts.map((_, i) => (hMin + i * step).toFixed(2)),
     datasets: [
       {
-        label: "Final Wealth Distribution",
+        label: `Final Wealth Distribution (${useCurrentCapitalForMC ? "from Current Capital" : "from Initial x₀"})`,
         data: counts.map((c) => (c / simulation.results.length) * 100),
         backgroundColor: "rgba(37, 99, 235, 0.65)",
         hoverBackgroundColor: "rgba(29, 78, 216, 0.85)",
@@ -540,7 +560,7 @@ function Page() {
         grid: { color: "rgba(226, 232, 240, 0.6)" },
         title: {
           display: true,
-          text: `Final Wealth after 12 months (in ${scaleLabel} SUM)`,
+          text: `Final Wealth after 12 months (starting from ${useCurrentCapitalForMC ? "Current Capital" : "Initial x₀"}: ${formatNum(baseCapitalUsed / SCALE)} in ${scaleLabel} SUM)`,
           font: { size: 12, weight: "bold" as const },
           color: "#475569",
         },
@@ -574,7 +594,7 @@ function Page() {
         padding: 10,
         cornerRadius: 8,
         callbacks: {
-          title: (items: any) => `Wealth: ~${items[0].label} ${scaleLabel}`,
+          title: (items: any) => `12M Projected Wealth: ~${items[0].label} ${scaleLabel}`,
           label: (ctx: any) => `Probability Density: ${Number(ctx.parsed.y).toFixed(2)}%`,
         },
       },
@@ -1161,23 +1181,55 @@ function Page() {
 
             {/* Tab 1: Monte Carlo specific controls */}
             {activeTab === "montecarlo" && (
-              <div className="flex flex-col">
-                <label
-                  htmlFor="inflationRate"
-                  className="text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1"
-                >
-                  <span>Monthly Inflation</span>
-                  <span className="text-slate-400 font-normal">(%)</span>
-                </label>
-                <input
-                  id="inflationRate"
-                  type="number"
-                  step="0.05"
-                  value={inflationRate}
-                  onChange={(e) => setInflationRate(Number(e.target.value))}
-                  className="border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 p-2 rounded-xl text-sm w-32 bg-slate-50/50"
-                />
-              </div>
+              <>
+                <div className="flex flex-col">
+                  <span className="text-xs font-semibold text-slate-700 mb-1">
+                    Simulation Starting Base
+                  </span>
+                  <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => setUseCurrentCapitalForMC(true)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all ${
+                        useCurrentCapitalForMC
+                          ? "bg-white text-blue-700 shadow-xs font-semibold"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      Current Capital ({formatNum(currentCapital / SCALE)} {scaleLabel})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setUseCurrentCapitalForMC(false)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all ${
+                        !useCurrentCapitalForMC
+                          ? "bg-white text-blue-700 shadow-xs font-semibold"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      Initial x₀ ({formatNum(startingWealth / SCALE)} {scaleLabel})
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-col">
+                  <label
+                    htmlFor="inflationRate"
+                    className="text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1"
+                  >
+                    <span>Monthly Inflation</span>
+                    <span className="text-slate-400 font-normal">(%)</span>
+                  </label>
+                  <input
+                    id="inflationRate"
+                    type="number"
+                    step="0.05"
+                    value={inflationRate}
+                    onChange={(e) => setInflationRate(Number(e.target.value))}
+                    className="border border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 p-2 rounded-xl text-sm w-28 bg-slate-50/50"
+                  />
+                </div>
+              </>
             )}
 
             {/* Tab 2: MPC Capital Trajectory controls */}
@@ -1337,19 +1389,36 @@ function Page() {
           <>
             <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
               <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                Mean Wealth (12M)
+                Starting Capital Base
+              </span>
+              <p className="text-lg font-bold text-blue-600 mt-0.5">
+                {formatNum(baseCapitalUsed / SCALE)}{" "}
+                <span className="text-xs font-medium text-slate-500">{scaleLabel}</span>
+              </p>
+              <span className="text-[11px] text-slate-500 font-medium">
+                {useCurrentCapitalForMC ? "Current Capital (Today)" : "Initial Capital x₀"}
+              </span>
+            </div>
+            <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                Mean Wealth (+12M)
               </span>
               <p className="text-lg font-bold text-slate-800 mt-0.5">
-                {formatNum(simulation.mean)} <span className="text-xs font-medium text-slate-500">{scaleLabel}</span>
+                {formatNum(simulation.mean)}{" "}
+                <span className="text-xs font-medium text-slate-500">{scaleLabel}</span>
               </p>
-              <span className="text-[11px] text-blue-600 font-medium">Expected Central Value</span>
+              <span className="text-[11px] text-emerald-600 font-medium">
+                Net Δ: {simulation.mean >= baseCapitalUsed / SCALE ? "+" : ""}
+                {formatNum(simulation.mean - baseCapitalUsed / SCALE)} {scaleLabel}
+              </span>
             </div>
             <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
               <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
                 Median (P50)
               </span>
               <p className="text-lg font-bold text-slate-800 mt-0.5">
-                {formatNum(simulation.median)} <span className="text-xs font-medium text-slate-500">{scaleLabel}</span>
+                {formatNum(simulation.median)}{" "}
+                <span className="text-xs font-medium text-slate-500">{scaleLabel}</span>
               </p>
               <span className="text-[11px] text-slate-500 font-medium">50% Probability Point</span>
             </div>
@@ -1358,7 +1427,8 @@ function Page() {
                 Downside Risk (P10)
               </span>
               <p className="text-lg font-bold text-amber-600 mt-0.5">
-                {formatNum(simulation.p10)} <span className="text-xs font-medium text-slate-500">{scaleLabel}</span>
+                {formatNum(simulation.p10)}{" "}
+                <span className="text-xs font-medium text-slate-500">{scaleLabel}</span>
               </p>
               <span className="text-[11px] text-amber-600 font-medium">90% Runs Exceed This</span>
             </div>
@@ -1367,19 +1437,10 @@ function Page() {
                 Upside Potential (P90)
               </span>
               <p className="text-lg font-bold text-emerald-600 mt-0.5">
-                {formatNum(simulation.p90)} <span className="text-xs font-medium text-slate-500">{scaleLabel}</span>
-              </p>
-              <span className="text-[11px] text-emerald-600 font-medium">Top 10% Outcome</span>
-            </div>
-            <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
-              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                P10–P90 Spread
-              </span>
-              <p className="text-lg font-bold text-slate-700 mt-0.5">
-                {formatNum(simulation.p90 - simulation.p10)}{" "}
+                {formatNum(simulation.p90)}{" "}
                 <span className="text-xs font-medium text-slate-500">{scaleLabel}</span>
               </p>
-              <span className="text-[11px] text-slate-500 font-medium">Distribution Width</span>
+              <span className="text-[11px] text-emerald-600 font-medium">Top 10% Outcome</span>
             </div>
           </>
         )}
@@ -1643,6 +1704,17 @@ function Page() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {activeTab === "montecarlo" && (
+              <span className="text-xs px-2.5 py-1 rounded-lg font-semibold inline-flex items-center gap-1.5 border bg-blue-50 text-blue-700 border-blue-200">
+                <span>
+                  Predicting +12 months from{" "}
+                  <strong>
+                    {useCurrentCapitalForMC ? "Current Capital" : "Initial x₀"}:{" "}
+                    {formatNum(baseCapitalUsed / SCALE)} {scaleLabel} SUM
+                  </strong>
+                </span>
+              </span>
+            )}
             {activeTab === "trends" && trendsData && (
               <span
                 className={`text-xs px-2.5 py-1 rounded-lg font-semibold inline-flex items-center gap-1.5 border ${
