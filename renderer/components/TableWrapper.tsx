@@ -22,6 +22,7 @@ export default function ScaledTableWrapper({ children }) {
       style={{
         transform: `scale(${scale})`,
         width: "100%",
+        height: "100%",
         transition: "transform 0.4s ease-in-out",
       }}
     >

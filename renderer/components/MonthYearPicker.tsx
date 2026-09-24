@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 
 // Helper: parse "MMMM yyyy" → { month, year }
-function parseMonthYear(str) {
+function parseMonthYear(str: string | undefined | null) {
   if (!str) return null;
   try {
     const date = new Date(str);
@@ -15,7 +15,7 @@ function parseMonthYear(str) {
 }
 
 // Helper: format { month, year } → "MMMM yyyy"
-function formatMonthYear({ month, year }) {
+function formatMonthYear({ month, year }: { month: number; year: number }) {
   const date = new Date(year, month - 1, 1);
   return date.toLocaleDateString("en-US", {
     month: "long",
@@ -23,7 +23,12 @@ function formatMonthYear({ month, year }) {
   });
 }
 
-export default function MonthYearPicker({ value, onChange }) {
+interface MonthYearPickerProps {
+  value: string;
+  onChange: (formatted: string) => void;
+}
+
+export default function MonthYearPicker({ value, onChange }: MonthYearPickerProps) {
   const parsed = typeof value === "string" ? parseMonthYear(value) : value;
 
   const now = new Date();
@@ -33,20 +38,28 @@ export default function MonthYearPicker({ value, onChange }) {
   const [month, setMonth] = useState(defaultMonth);
   const [year, setYear] = useState(defaultYear);
 
+  useEffect(() => {
+    if (parsed) {
+      setMonth(parsed.month);
+      setYear(parsed.year);
+    }
+  }, [value]);
+
   const months = [
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
   ];
 
   return (
     <div className="flex items-center gap-2">
       <select
         aria-label="Month"
-        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-slate-500 focus:ring-slate-500 sm:text-sm p-2 bg-white text-slate-800"
+        className="w-full rounded-xl border border-slate-200/90 shadow-2xs focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 text-xs md:text-sm p-2 bg-slate-50/50 hover:bg-white focus:bg-white text-slate-800 transition-all font-medium cursor-pointer"
         value={month}
         onChange={(e) => {
-            const m = Number(e.target.value);
-            setMonth(m);
-            onChange?.(formatMonthYear({ month: m, year }));
+          const m = Number(e.target.value);
+          setMonth(m);
+          onChange?.(formatMonthYear({ month: m, year }));
         }}
       >
         {months.map((m, i) => (
@@ -61,20 +74,14 @@ export default function MonthYearPicker({ value, onChange }) {
         type="number"
         min={1900}
         max={3000}
-        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-slate-500 focus:ring-slate-500 sm:text-sm p-2 bg-white text-slate-800"
+        className="w-24 rounded-xl border border-slate-200/90 shadow-2xs focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 text-xs md:text-sm p-2 bg-slate-50/50 hover:bg-white focus:bg-white text-slate-800 transition-all font-medium"
         value={year}
         onChange={(e) => {
-            const y = Number(e.target.value);
-            setYear(y);
-            onChange?.(formatMonthYear({ month, year: y }));
+          const y = Number(e.target.value);
+          setYear(y);
+          onChange?.(formatMonthYear({ month, year: y }));
         }}
       />
     </div>
   );
 }
-
-// Usage inside TableRow:
-// <MonthYearPicker
-//   value={row.monthYear} // e.g. "January 2024"
-//   onChange={(formatted) => onUpdate(row.id, "monthYear", formatted)}
-// />
