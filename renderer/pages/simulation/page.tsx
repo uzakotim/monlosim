@@ -1131,22 +1131,20 @@ function Page() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-medium cursor-pointer transition-all duration-150 whitespace-nowrap ${
-                  isActive
-                    ? "bg-white text-slate-900 shadow-sm border border-slate-200 font-semibold"
-                    : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
-                }`}
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-medium cursor-pointer transition-all duration-150 whitespace-nowrap ${isActive
+                  ? "bg-white text-slate-900 shadow-sm border border-slate-200 font-semibold"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                  }`}
               >
                 <span className={isActive ? "text-blue-600" : "text-slate-400"}>
                   {tab.icon}
                 </span>
                 <span>{tab.label}</span>
                 <span
-                  className={`text-[10px] px-1.5 py-0.5 rounded-md ${
-                    isActive
-                      ? "bg-blue-50 text-blue-700 font-semibold"
-                      : "bg-slate-200/70 text-slate-500"
-                  }`}
+                  className={`text-[10px] px-1.5 py-0.5 rounded-md ${isActive
+                    ? "bg-blue-50 text-blue-700 font-semibold"
+                    : "bg-slate-200/70 text-slate-500"
+                    }`}
                 >
                   {tab.badge}
                 </span>
@@ -1190,22 +1188,20 @@ function Page() {
                     <button
                       type="button"
                       onClick={() => setUseCurrentCapitalForMC(true)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all ${
-                        useCurrentCapitalForMC
-                          ? "bg-white text-blue-700 shadow-xs font-semibold"
-                          : "text-slate-600 hover:text-slate-900"
-                      }`}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all ${useCurrentCapitalForMC
+                        ? "bg-white text-blue-700 shadow-xs font-semibold"
+                        : "text-slate-600 hover:text-slate-900"
+                        }`}
                     >
                       Current Capital ({formatNum(currentCapital / SCALE)} {scaleLabel})
                     </button>
                     <button
                       type="button"
                       onClick={() => setUseCurrentCapitalForMC(false)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all ${
-                        !useCurrentCapitalForMC
-                          ? "bg-white text-blue-700 shadow-xs font-semibold"
-                          : "text-slate-600 hover:text-slate-900"
-                      }`}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all ${!useCurrentCapitalForMC
+                        ? "bg-white text-blue-700 shadow-xs font-semibold"
+                        : "text-slate-600 hover:text-slate-900"
+                        }`}
                     >
                       Initial x₀ ({formatNum(startingWealth / SCALE)} {scaleLabel})
                     </button>
@@ -1318,31 +1314,28 @@ function Page() {
                   <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
                     <button
                       onClick={() => setTrendViewMode("combined")}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all ${
-                        trendViewMode === "combined"
-                          ? "bg-white text-blue-700 shadow-xs font-semibold"
-                          : "text-slate-600 hover:text-slate-900"
-                      }`}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all ${trendViewMode === "combined"
+                        ? "bg-white text-blue-700 shadow-xs font-semibold"
+                        : "text-slate-600 hover:text-slate-900"
+                        }`}
                     >
                       Curves + Net Bars
                     </button>
                     <button
                       onClick={() => setTrendViewMode("curves")}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all ${
-                        trendViewMode === "curves"
-                          ? "bg-white text-blue-700 shadow-xs font-semibold"
-                          : "text-slate-600 hover:text-slate-900"
-                      }`}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all ${trendViewMode === "curves"
+                        ? "bg-white text-blue-700 shadow-xs font-semibold"
+                        : "text-slate-600 hover:text-slate-900"
+                        }`}
                     >
                       Income vs Expense
                     </button>
                     <button
                       onClick={() => setTrendViewMode("cumulative")}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all ${
-                        trendViewMode === "cumulative"
-                          ? "bg-white text-indigo-700 shadow-xs font-semibold"
-                          : "text-slate-600 hover:text-slate-900"
-                      }`}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all ${trendViewMode === "cumulative"
+                        ? "bg-white text-indigo-700 shadow-xs font-semibold"
+                        : "text-slate-600 hover:text-slate-900"
+                        }`}
                     >
                       Cumulative Net Wealth
                     </button>
@@ -1535,9 +1528,8 @@ function Page() {
                 return (
                   <>
                     <p
-                      className={`text-lg font-bold mt-0.5 ${
-                        diffPct <= 0 ? "text-emerald-600" : "text-amber-600"
-                      }`}
+                      className={`text-lg font-bold mt-0.5 ${diffPct <= 0 ? "text-emerald-600" : "text-amber-600"
+                        }`}
                     >
                       {diffPct >= 0 ? `+${diffPct.toFixed(1)}%` : `${diffPct.toFixed(1)}%`}
                     </p>
@@ -1568,9 +1560,8 @@ function Page() {
                 return (
                   <>
                     <p
-                      className={`text-lg font-bold mt-0.5 ${
-                        net >= 0 ? "text-blue-600" : "text-red-600"
-                      }`}
+                      className={`text-lg font-bold mt-0.5 ${net >= 0 ? "text-blue-600" : "text-red-600"
+                        }`}
                     >
                       {formatNum(net / planScaleDivider)}{" "}
                       <span className="text-xs font-medium text-slate-500">{planScaleLabel}</span>
@@ -1620,9 +1611,8 @@ function Page() {
                 Growth Velocity Verdict
               </span>
               <p
-                className={`text-lg font-bold mt-0.5 flex items-center gap-1 ${
-                  trendsData.isIncomeGrowingFaster ? "text-emerald-600" : "text-amber-600"
-                }`}
+                className={`text-lg font-bold mt-0.5 flex items-center gap-1 ${trendsData.isIncomeGrowingFaster ? "text-emerald-600" : "text-amber-600"
+                  }`}
               >
                 {trendsData.isIncomeGrowingFaster ? (
                   <>
@@ -1637,9 +1627,8 @@ function Page() {
                 )}
               </p>
               <span
-                className={`text-[11px] font-semibold ${
-                  trendsData.isIncomeGrowingFaster ? "text-emerald-600" : "text-amber-600"
-                }`}
+                className={`text-[11px] font-semibold ${trendsData.isIncomeGrowingFaster ? "text-emerald-600" : "text-amber-600"
+                  }`}
               >
                 Net: {trendsData.slopeDiff >= 0 ? "+" : ""}
                 {formatNum(trendsData.slopeDiff / trendsData.S)} {trendsData.sL} SUM/mo
@@ -1650,9 +1639,8 @@ function Page() {
                 Net Cumulative Savings
               </span>
               <p
-                className={`text-lg font-bold mt-0.5 ${
-                  trendsData.totalNet >= 0 ? "text-blue-600" : "text-red-600"
-                }`}
+                className={`text-lg font-bold mt-0.5 ${trendsData.totalNet >= 0 ? "text-blue-600" : "text-red-600"
+                  }`}
               >
                 {formatNum(trendsData.totalNet / trendsData.S)}{" "}
                 <span className="text-xs font-medium text-slate-500">{trendsData.sL} SUM</span>
@@ -1717,11 +1705,10 @@ function Page() {
             )}
             {activeTab === "trends" && trendsData && (
               <span
-                className={`text-xs px-2.5 py-1 rounded-lg font-semibold inline-flex items-center gap-1.5 border ${
-                  trendsData.isIncomeGrowingFaster
-                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                    : "bg-amber-50 text-amber-700 border-amber-200"
-                }`}
+                className={`text-xs px-2.5 py-1 rounded-lg font-semibold inline-flex items-center gap-1.5 border ${trendsData.isIncomeGrowingFaster
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : "bg-amber-50 text-amber-700 border-amber-200"
+                  }`}
               >
                 {trendsData.isIncomeGrowingFaster ? (
                   <>
@@ -1736,9 +1723,9 @@ function Page() {
                 )}
               </span>
             )}
-            <div className="text-xs text-slate-400 font-medium hidden sm:block">
+            {/* <div className="text-xs text-slate-400 font-medium hidden sm:block">
               {rows.length} Historical Records
-            </div>
+            </div> */}
           </div>
         </div>
 

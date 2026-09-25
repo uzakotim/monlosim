@@ -40,21 +40,21 @@ export default function TableComponent({
   const stdIncome =
     count > 1
       ? Math.sqrt(
-          data.reduce(
-            (sum, row) => sum + Math.pow(Number(row.income || 0) - averageIncome, 2),
-            0
-          ) / count
-        )
+        data.reduce(
+          (sum, row) => sum + Math.pow(Number(row.income || 0) - averageIncome, 2),
+          0
+        ) / count
+      )
       : 0;
 
   const stdExpenses =
     count > 1
       ? Math.sqrt(
-          data.reduce(
-            (sum, row) => sum + Math.pow(Number(row.expenses || 0) - averageExpenses, 2),
-            0
-          ) / count
-        )
+        data.reduce(
+          (sum, row) => sum + Math.pow(Number(row.expenses || 0) - averageExpenses, 2),
+          0
+        ) / count
+      )
       : 0;
 
   return (
@@ -68,9 +68,9 @@ export default function TableComponent({
           <p className="text-lg font-bold text-emerald-600 mt-0.5 truncate tabular-nums">
             {formatNumber(totalIncome)} <span className="text-xs font-medium text-slate-500">SUM</span>
           </p>
-          <span className="text-[11px] text-slate-500 font-medium">
+          {/* <span className="text-[11px] text-slate-500 font-medium">
             Across {count} months
-          </span>
+          </span> */}
         </div>
 
         <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
@@ -80,9 +80,9 @@ export default function TableComponent({
           <p className="text-lg font-bold text-red-600 mt-0.5 truncate tabular-nums">
             {formatNumber(totalExpenses)} <span className="text-xs font-medium text-slate-500">SUM</span>
           </p>
-          <span className="text-[11px] text-slate-500 font-medium">
+          {/* <span className="text-[11px] text-slate-500 font-medium">
             Across {count} months
-          </span>
+          </span> */}
         </div>
 
         <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
@@ -90,9 +90,8 @@ export default function TableComponent({
             Net Cashflow
           </span>
           <p
-            className={`text-lg font-bold mt-0.5 truncate flex items-center gap-1 tabular-nums ${
-              netSavings >= 0 ? "text-blue-600" : "text-red-600"
-            }`}
+            className={`text-lg font-bold mt-0.5 truncate flex items-center gap-1 tabular-nums ${netSavings >= 0 ? "text-blue-600" : "text-red-600"
+              }`}
           >
             {netSavings >= 0 ? (
               <ArrowUpRight className="w-4 h-4 shrink-0 text-emerald-600" />
@@ -102,9 +101,9 @@ export default function TableComponent({
             <span>{formatNumber(netSavings)}</span>
             <span className="text-xs font-medium text-slate-500">SUM</span>
           </p>
-          <span className="text-[11px] text-slate-500 font-medium">
+          {/* <span className="text-[11px] text-slate-500 font-medium">
             Margin: {savingsRate.toFixed(1)}%
-          </span>
+          </span> */}
         </div>
 
         <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
@@ -114,9 +113,9 @@ export default function TableComponent({
           <p className="text-lg font-bold text-slate-800 mt-0.5 truncate tabular-nums">
             {formatNumber(averageIncome)} <span className="text-xs font-medium text-slate-500">SUM</span>
           </p>
-          <span className="text-[11px] text-blue-600 font-medium">
+          {/* <span className="text-[11px] text-blue-600 font-medium">
             Std Dev: ±{formatNumber(stdIncome)}
-          </span>
+          </span> */}
         </div>
 
         <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
@@ -126,9 +125,9 @@ export default function TableComponent({
           <p className="text-lg font-bold text-slate-800 mt-0.5 truncate tabular-nums">
             {formatNumber(averageExpenses)} <span className="text-xs font-medium text-slate-500">SUM</span>
           </p>
-          <span className="text-[11px] text-blue-600 font-medium">
+          {/* <span className="text-[11px] text-blue-600 font-medium">
             Std Dev: ±{formatNumber(stdExpenses)}
-          </span>
+          </span> */}
         </div>
       </div>
 

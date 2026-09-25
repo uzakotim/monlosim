@@ -119,7 +119,7 @@ function Page() {
 
         {/* Right side info and Add Month action */}
         <div className="flex items-center gap-2.5 flex-wrap">
-          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100/90 rounded-xl border border-slate-200/80 text-xs font-medium text-slate-600">
+          {/* <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100/90 rounded-xl border border-slate-200/80 text-xs font-medium text-slate-600">
             <FileJson className="w-3.5 h-3.5 text-emerald-600" />
             <span className="text-slate-400">File:</span>
             <span className="font-semibold text-slate-800">{currentFile}</span>
@@ -127,7 +127,7 @@ function Page() {
 
           <div className="px-2.5 py-1.5 bg-slate-100/90 rounded-xl border border-slate-200/80 text-xs font-semibold text-slate-600">
             {data.length} {data.length === 1 ? "month" : "months"}
-          </div>
+          </div> */}
 
           <button
             onClick={handleAddRow}
