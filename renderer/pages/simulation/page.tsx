@@ -1113,14 +1113,14 @@ function Page() {
   return (
     <div className="flex flex-col min-h-0 h-full p-2 md:p-3 gap-3">
       {/* ── Top Header & Tab Navigation ──────────────────────────────────── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200/90 shadow-xs">
-        <div>
-          <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-1 bg-white p-3 rounded-2xl border border-slate-200/90 shadow-xs">
+        <div className="flex flex-col gap-0 w-[200px]">
+          <h2 className="text-md font-bold text-slate-800 flex items-center gap-2">
             <span>Financial Simulation &amp; Optimization</span>
           </h2>
-          <p className="text-xs text-slate-500">
+          {/* <p className="text-xs text-slate-500">
             Select a screen to view probability distributions, optimal control trajectories, or historical trends.
-          </p>
+          </p> */}
         </div>
 
         {/* Tab switcher buttons */}
@@ -1132,7 +1132,7 @@ function Page() {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-medium cursor-pointer transition-all duration-150 whitespace-nowrap ${isActive
-                  ? "bg-white text-slate-900 shadow-sm border border-slate-200 font-semibold"
+                  ? "bg-white text-slate-900 shadow-sm border border-slate-800 font-semibold"
                   : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
                   }`}
               >
@@ -1358,27 +1358,27 @@ function Page() {
           </div>
 
           {/* Quick Summary Badge for current screen */}
-          <div className="text-xs text-slate-500 flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200/80">
-            <Info className="w-4 h-4 text-blue-600 shrink-0" />
-            {activeTab === "montecarlo" && (
+          {/* <div className="text-xs text-slate-500 flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-xl border border-slate-200/80"> */}
+          {/* <Info className="w-4 h-4 text-blue-600 shrink-0" /> */}
+          {/* {activeTab === "montecarlo" && (
               <span>100,000 iterations over 12 months with normal income/expense perturbations.</span>
-            )}
-            {activeTab === "mpc-capital" && (
+            )} */}
+          {/* {activeTab === "mpc-capital" && (
               <span>Closed-form Receding Horizon Control trajectory balancing goal attainment &amp; safety.</span>
-            )}
-            {activeTab === "mpc-spending" && (
+            )} */}
+          {/* {activeTab === "mpc-spending" && (
               <span>Calculated optimal monthly spending u* against P10/P90 log-normal income bounds.</span>
             )}
             {activeTab === "trends" && (
               <span>Historical income &amp; expense trends with linear slope fit to compare growth velocities.</span>
-            )}
-          </div>
+            )} */}
+          {/* </div> */}
         </div>
       </div>
 
       {/* ── Key Performance Indicators (KPI) Strip ───────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
-        {activeTab === "montecarlo" && (
+        {/* {activeTab === "montecarlo" && (
           <>
             <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
               <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
@@ -1436,9 +1436,9 @@ function Page() {
               <span className="text-[11px] text-emerald-600 font-medium">Top 10% Outcome</span>
             </div>
           </>
-        )}
+        )} */}
 
-        {activeTab === "mpc-capital" && mpcResult && (
+        {/* {activeTab === "mpc-capital" && mpcResult && (
           <>
             <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
               <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
@@ -1493,8 +1493,8 @@ function Page() {
               <span className="text-[11px] text-slate-500 font-medium">Margin Above x_min</span>
             </div>
           </>
-        )}
-
+        )} */}
+        {/* 
         {activeTab === "mpc-spending" && mpcResult && (
           <>
             <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
@@ -1662,7 +1662,7 @@ function Page() {
               </span>
             </div>
           </>
-        )}
+        )} */}
       </div>
 
       {/* ── Active Chart Screen ───────────────────────────────────────────── */}
